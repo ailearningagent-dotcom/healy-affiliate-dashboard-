@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist SQLite data outside the container
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./data/marketai.db
+      # ── Add your API keys below ──
+      # - OPENAI_API_KEY=sk-...
+      # - ANTHROPIC_API_KEY=sk-...
+      # - GOOGLE_API_KEY=...
+      # - DATABASE_AUTH_TOKEN=...
+      # - AUTH_SECRET=...
+    restart: unless-stopped

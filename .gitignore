@@ -1,0 +1,49 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# testing
+coverage/
+
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# SQLite data
+data/marketai.db
+
+# WhatsApp session data (contains auth tokens)
+data/whatsapp/
+
+# Config / test scripts
+_config*.mjs
+_test*.mjs
+_test*.ts
+nul
+
+# IDE / editor config
+.opencode/
