@@ -26,7 +26,16 @@ function validateTableName(table: string): void {
 }
 
 function getUrl(): string {
-  return process.env.DATABASE_URL ?? "file:./data/marketai.db";
+  const url = process.env.DATABASE_URL ?? "file:./data/marketai.db";
+  // On Vercel, the filesystem is read-only (except /tmp)
+  // Rewrite local file: paths to use /tmp when running on Vercel
+  if (url.startsWith("file:") && process.env.VERCEL === "1") {
+    const filePath = url.replace("file:", "");
+    // Use /tmp/ prefix and only keep the filename to avoid deep path issues
+    const filename = filePath.split(/[\\/]/).pop() || "marketai.db";
+    return `file:/tmp/${filename}`;
+  }
+  return url;
 }
 
 function getAuthToken(): string | undefined {

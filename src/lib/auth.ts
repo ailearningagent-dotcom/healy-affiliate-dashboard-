@@ -3,12 +3,19 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const AUTH_SECRET = process.env.AUTH_SECRET;
-if (!AUTH_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error(
-    "AUTH_SECRET environment variable is required in production. " +
-    "Generate one with: openssl rand -base64 32"
-  );
+/**
+ * Lazy validation — won't throw until the module is actually used.
+ * This prevents build-time crashes when env vars aren't available yet.
+ */
+function getAuthSecret(): string | undefined {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_SECRET environment variable is required in production. " +
+      "Generate one with: openssl rand -base64 32"
+    );
+  }
+  return secret;
 }
 
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
@@ -61,7 +68,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   trustHost: true,
-  secret: AUTH_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret-insecure" : undefined),
+  secret: getAuthSecret() || (process.env.NODE_ENV === "development" ? "dev-secret-insecure" : undefined),
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60,
