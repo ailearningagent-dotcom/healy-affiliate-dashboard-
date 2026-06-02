@@ -7,8 +7,9 @@
  */
 
 import nodemailer from "nodemailer";
-import { getSetting, setSetting } from "@/lib/db";
+import { getSetting } from "@/lib/db";
 import { withRetry } from "@/lib/utils/retry";
+import { logger } from "@/lib/logger";
 
 // ========================================================================
 // CONFIGURATION
@@ -46,13 +47,13 @@ async function getConfig(): Promise<EmailConfig> {
     ]);
 
   return {
-    provider: (provider as EmailConfig["provider"]) || "none",
-    gmailUser: gmailUser || undefined,
-    gmailAppPassword: gmailPass || undefined,
-    resendApiKey: resendKey || undefined,
-    sendgridApiKey: sendgridKey || undefined,
-    fromName: fromName || DEFAULT_FROM_NAME,
-    fromEmail: fromEmail || DEFAULT_FROM_EMAIL,
+    provider: (provider as EmailConfig["provider"]) || (process.env.EMAIL_GMAIL_USER ? "gmail_smtp" as const : "none"),
+    gmailUser: gmailUser || process.env.EMAIL_GMAIL_USER || undefined,
+    gmailAppPassword: gmailPass || process.env.EMAIL_GMAIL_APP_PASSWORD || undefined,
+    resendApiKey: resendKey || process.env.RESEND_API_KEY || undefined,
+    sendgridApiKey: sendgridKey || process.env.SENDGRID_API_KEY || undefined,
+    fromName: fromName || process.env.EMAIL_FROM_NAME || DEFAULT_FROM_NAME,
+    fromEmail: fromEmail || process.env.EMAIL_FROM_EMAIL || DEFAULT_FROM_EMAIL,
   };
 }
 
@@ -96,7 +97,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
   const config = await getConfig();
 
   if (config.provider === "none") {
-    console.log(`[Email Sender] Skipping email to ${message.to} — no provider configured (subject: "${message.subject}")`);
+    logger.info("Email", `Skipping email to ${message.to} — no provider configured (subject: "${message.subject}")`);
     return { success: false, provider: "none", error: "No email provider configured" };
   }
 
@@ -113,7 +114,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
   }
 
   // Fallback: no valid provider credentials
-  console.log(`[Email Sender] No valid provider credentials found. Would send to ${message.to}: "${message.subject}"`);
+  logger.info("Email", `No valid provider credentials found. Would send to ${message.to}: "${message.subject}"`);
   return { success: false, provider: "none", error: `Provider "${config.provider}" not configured (missing API key)` };
 }
 
@@ -126,7 +127,7 @@ export async function sendEmailWithRetry(message: EmailMessage): Promise<EmailRe
     maxRetries: 2,
     baseDelay: 1000,
     timeout: 15000,
-    logger: (msg) => console.warn(`[Email Retry] ${msg}`),
+    logger: (msg) => logger.warn("Email", msg),
   });
 }
 

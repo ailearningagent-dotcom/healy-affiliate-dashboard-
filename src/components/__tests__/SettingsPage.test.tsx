@@ -7,9 +7,10 @@ vi.mock("lucide-react", () => {
   const icons: Record<string, unknown> = {};
   const names = [
     "Key", "Bell", "Shield", "Palette", "Save", "CheckCircle2", "ChevronRight",
-    "Sparkles", "Bot", "Globe", "Zap", "Cpu", "ChevronDown", "Calendar",
-    "Link", "ExternalLink", "Clock", "Unlink", "Mail", "MessageCircle", "Phone",
+    "Sparkles", "Bot", "Globe", "Zap", "Cpu", "ChevronDown",
+    "Mail", "MessageCircle", "Phone",
     "Smartphone", "Send", "Loader2", "Atom", "Brain", "Wind", "Network",
+    "Earth", "MapPin", "ToggleLeft", "ToggleRight", "Search",
   ];
   names.forEach((n) => {
     icons[n] = ({ className }: { className?: string }) =>
@@ -59,7 +60,6 @@ describe("SettingsPage", () => {
   it("renders settings sidebar sections", async () => {
     render(<SettingsPage />);
     expect(await screen.findByText("API Keys")).toBeInTheDocument();
-    expect(screen.getByText("Calendar")).toBeInTheDocument();
     expect(screen.getByText("Preferences")).toBeInTheDocument();
     expect(screen.getByText("Notifications")).toBeInTheDocument();
     expect(screen.getByText("Security")).toBeInTheDocument();
@@ -103,13 +103,6 @@ describe("SettingsPage", () => {
     expect(options.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("switches to Calendar section when clicked", async () => {
-    const user = userEvent.setup();
-    render(<SettingsPage />);
-    await user.click(screen.getByText("Calendar"));
-    expect(screen.getByText("Google Calendar Integration")).toBeInTheDocument();
-  });
-
   it("switches to Preferences section when clicked", async () => {
     const user = userEvent.setup();
     render(<SettingsPage />);
@@ -124,22 +117,6 @@ describe("SettingsPage", () => {
 
     expect(screen.getByDisplayValue("Healy")).toBeInTheDocument();
     expect(screen.getByDisplayValue(/frequency wellness technology/i)).toBeInTheDocument();
-  });
-
-  it("shows Connect button when calendar not connected", async () => {
-    render(<SettingsPage />);
-    const user = userEvent.setup();
-    await user.click(screen.getByText("Calendar"));
-    expect(screen.getByText("Connect")).toBeInTheDocument();
-  });
-
-  it("shows default availability settings", async () => {
-    const user = userEvent.setup();
-    render(<SettingsPage />);
-    await user.click(screen.getByText("Calendar"));
-
-    expect(screen.getByDisplayValue("09:00")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("17:00")).toBeInTheDocument();
   });
 
   it("shows default provider selector", async () => {

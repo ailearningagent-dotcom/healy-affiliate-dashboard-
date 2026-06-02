@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentManager, getAgentManager } from "../agent-manager";
 
-// All DB calls are mocked in test-setup.ts
-// All callLLM calls are mocked in test-setup.ts
-
 describe("AgentManager", () => {
   let manager: AgentManager;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create a fresh instance for each test
     manager = new AgentManager();
   });
 
@@ -21,12 +17,8 @@ describe("AgentManager", () => {
       expect(types).toContain("content");
       expect(types).toContain("research");
       expect(types).toContain("outreach");
-      expect(types).toContain("ceo");
-      expect(types).toContain("cfo");
-      expect(types).toContain("analyst");
-      expect(types).toContain("design");
       expect(types).toContain("sales");
-      expect(types).toContain("developer");
+      expect(types).toContain("scraper");
     });
 
     it("returns agent config for each type", () => {
@@ -36,10 +28,9 @@ describe("AgentManager", () => {
       expect(config!.name).toBe("AI Content Creator");
     });
 
-    it("returns undefined for missing config", () => {
-      // All types should be registered
-      const types = manager.getAllAgents().map((a) => a.config.type);
-      expect(types.length).toBeGreaterThanOrEqual(9);
+    it("returns undefined for unregistered type", () => {
+      const config = manager.getAgentConfig("unknown" as any);
+      expect(config).toBeUndefined();
     });
 
     it("all agents start with idle status", () => {
@@ -53,17 +44,6 @@ describe("AgentManager", () => {
       const agent = manager.getAgent("content");
       expect(agent).toBeDefined();
       expect(agent!.getConfig().type).toBe("content");
-    });
-
-    it("scraper is now registered as an agent with config", () => {
-      // scraper is now in both initializeAgents and DEFAULT_CONFIGS
-      const agent = manager.getAgent("scraper" as any);
-      expect(agent).toBeDefined();
-      expect(agent!.getConfig().type).toBe("scraper");
-      // Config should also be available
-      const config = manager.getAgentConfig("scraper" as any);
-      expect(config).toBeDefined();
-      expect(config!.type).toBe("scraper");
     });
   });
 
@@ -84,17 +64,12 @@ describe("AgentManager", () => {
           keyPoints: ["Test point"],
         })
       );
-
-      // The mock in test-setup returns a generic JSON response
-      // But the agent should still process and return a result
       expect(result).toBeDefined();
       expect(result.agentType).toBe("content");
     });
 
     it("updates status to running then completed", async () => {
-      // Before execution
       expect(manager.getAgentStatus("content")).toBe("idle");
-
       await manager.executeAgent(
         "content",
         JSON.stringify({
@@ -104,43 +79,7 @@ describe("AgentManager", () => {
           keyPoints: ["Benefit 1"],
         })
       );
-
-      // After successful execution
       expect(manager.getAgentStatus("content")).toBe("completed");
-    });
-  });
-
-  describe("department teams", () => {
-    it("returns department team definitions", () => {
-      const teams = manager.getDepartmentTeams();
-      expect(teams).toBeDefined();
-      expect(Object.keys(teams).length).toBeGreaterThanOrEqual(6);
-    });
-
-    it("each department has sub-agents", () => {
-      const teams = manager.getDepartmentTeams();
-      for (const [, dept] of Object.entries(teams)) {
-        expect(dept.subAgents.length).toBeGreaterThan(0);
-        expect(dept.name).toBeTruthy();
-        expect(dept.color).toBeTruthy();
-      }
-    });
-  });
-
-  describe("team summary", () => {
-    it("returns a team summary with department info", async () => {
-      const summary = await manager.getTeamSummary();
-      expect(summary).toBeDefined();
-      expect(Array.isArray(summary.departments)).toBe(true);
-      expect(typeof summary.activeProjects).toBe("number");
-      expect(summary.totalTeamMembers).toBe(summary.departments.length);
-    });
-  });
-
-  describe("getDepartmentReports", () => {
-    it("returns department reports", async () => {
-      const reports = await manager.getDepartmentReports();
-      expect(Array.isArray(reports)).toBe(true);
     });
   });
 

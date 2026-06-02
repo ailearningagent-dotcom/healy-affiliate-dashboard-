@@ -35,11 +35,9 @@ interface ClientWithMetrics extends Client {
     totalLeads: number;
     appointmentsScheduled: number;
     appointmentsCompleted: number;
-    totalBookings: number;
   };
   leads?: Array<Record<string, unknown>>;
   appointments?: Array<Record<string, unknown>>;
-  bookings?: Array<Record<string, unknown>>;
 }
 
 // ============ CREATE MODAL ============
@@ -176,7 +174,7 @@ function CreateClientModal({
                 required
               />
             </div>
-            <p className="text-[11px] text-surface-400 mt-1">Used in the booking page URL: /book/{slug || "..."}</p>
+            <p className="text-[11px] text-surface-400 mt-1">Unique identifier for this client</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -410,9 +408,9 @@ function ClientCard({
           <div className="rounded-lg bg-surface-50 dark:bg-surface-900/50 p-2.5 text-center">
             <CalendarCheck className="h-3.5 w-3.5 text-emerald-500 mx-auto mb-1" />
             <p className="text-sm font-bold text-surface-900 dark:text-surface-100">
-              {client.metrics.totalBookings}
+              {client.metrics.appointmentsScheduled}
             </p>
-            <p className="text-[10px] text-surface-500">Bookings</p>
+            <p className="text-[10px] text-surface-500">Appointments</p>
           </div>
         </div>
       )}
@@ -420,7 +418,7 @@ function ClientCard({
       {/* Actions */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-surface-400 font-mono">
-          /book/{client.slug}
+          {client.slug}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <button
@@ -584,9 +582,10 @@ function ClientDetailPanel({
               </p>
             </div>
             <div className="rounded-lg border border-surface-100 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 p-3">
-              <p className="text-xs text-surface-500">Total Bookings</p>
-              <p className="text-lg font-bold text-surface-900 dark:text-surface-100">
-                {client.metrics.totalBookings}
+              <p className="text-xs text-surface-500">Appointments</p>
+
+              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">
+                {client.metrics.appointmentsScheduled}
               </p>
             </div>
           </div>

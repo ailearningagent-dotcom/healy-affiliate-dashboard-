@@ -92,8 +92,7 @@ describe("BaseAgent", () => {
 
   it("handles all agent types", async () => {
     const types: AgentType[] = [
-      "ceo", "cfo", "analyst", "design", "sales",
-      "developer", "content", "research", "outreach", "scraper",
+      "sales", "content", "research", "outreach", "scraper",
     ];
 
     for (const type of types) {

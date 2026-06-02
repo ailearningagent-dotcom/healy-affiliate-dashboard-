@@ -3,10 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
+  CalendarDays,
   Users,
-  Calendar,
-  CalendarCheck,
   Star,
   Target,
   TrendingUp,
@@ -14,25 +12,29 @@ import {
   Phone,
   Globe,
   Palette,
-  ExternalLink,
-  Eye,
   Clock,
   ChevronRight,
   Sparkles,
   AlertCircle,
   Loader2,
-  CalendarDays,
   BarChart3,
   PieChart,
   Activity,
   UserCheck,
   Zap,
   Settings,
-  X,
+  RefreshCw,
+  Trash2,
+  MoreHorizontal,
+  Building2,
+  UserPlus,
   CheckCircle2,
-  Save,
+  X,
+  Edit3,
+  ArrowLeft,
   Power,
   PowerOff,
+  Save,
 } from "lucide-react";
 import type { Client, Lead, Appointment } from "@/lib/agents/types";
 import clsx from "clsx";
@@ -44,7 +46,6 @@ interface DashboardData extends Client {
     totalLeads: number;
     appointmentsScheduled: number;
     appointmentsCompleted: number;
-    totalBookings: number;
     qualifiedLeads: number;
     conversionRate: number;
     totalAppointments: number;
@@ -60,11 +61,6 @@ interface DashboardData extends Client {
   appointments: Appointment[];
   upcomingAppointments: Appointment[];
   recentLeads: Lead[];
-  bookings: Array<Record<string, unknown>>;
-  calendar: {
-    connected: boolean;
-    email: string | null;
-  };
 }
 
 // ============ STATUS CONFIG ============
@@ -653,12 +649,6 @@ export default function AdminClientDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {data.calendar.connected && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Calendar Connected
-            </span>
-          )}
           <button
             onClick={() => setShowSettings(true)}
             className="flex items-center gap-1.5 rounded-lg border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 px-3 py-1.5 text-xs font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-50 transition-colors"
@@ -666,16 +656,6 @@ export default function AdminClientDashboard() {
             <Settings className="h-3.5 w-3.5" />
             Settings
           </button>
-          <a
-            href={`/book/${data.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-800 px-3 py-1.5 text-xs font-medium text-surface-600 dark:text-surface-400 hover:bg-surface-50 transition-colors"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            View Booking Page
-            <ExternalLink className="h-3 w-3" />
-          </a>
         </div>
       </div>
 
@@ -683,8 +663,7 @@ export default function AdminClientDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard icon={Users} label="Total Leads" value={totalLeads} color="#6366f1" trend={totalLeads > 0 ? "up" : undefined} />
         <StatCard icon={UserCheck} label="Qualified Leads" value={data.metrics.qualifiedLeads} color="#10b981" sublabel={`${totalLeads > 0 ? Math.round((data.metrics.qualifiedLeads / totalLeads) * 100) : 0}% of total`} />
-        <StatCard icon={Calendar} label="Appointments" value={totalAppointments} color="#8b5cf6" sublabel={`${data.metrics.appointmentsScheduled} scheduled`} />
-        <StatCard icon={CalendarCheck} label="Bookings" value={data.metrics.totalBookings} color="#f59e0b" />
+        <StatCard icon={CalendarDays} label="Appointments" value={totalAppointments} color="#8b5cf6" sublabel={`${data.metrics.appointmentsScheduled} scheduled`} />
         <StatCard icon={Target} label="Conversion" value={`${data.metrics.conversionRate}%`} color="#ec4899" sublabel={`${data.metrics.appointmentsCompleted} completed`} />
       </div>
 
@@ -953,10 +932,6 @@ export default function AdminClientDashboard() {
           <div className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
             <Mail className="h-4 w-4 text-surface-400" />
             {data.email || "No email"}
-          </div>
-          <div className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
-            <Globe className="h-4 w-4 text-surface-400" />
-            <span className="font-mono">/book/{data.slug}</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
             <Palette className="h-4 w-4 text-surface-400" />

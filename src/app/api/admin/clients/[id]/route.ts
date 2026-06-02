@@ -7,8 +7,6 @@ import {
   getClientMetrics,
   getClientLeads,
   getClientAppointments,
-  getClientBookings,
-  getSetting,
 } from "@/lib/db";
 import type { Lead, Appointment } from "@/lib/agents/types";
 
@@ -41,11 +39,10 @@ export async function GET(
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    const [metrics, leads, appointments, bookings] = await Promise.all([
+    const [metrics, leads, appointments] = await Promise.all([
       getClientMetrics(id),
       getClientLeads(id),
       getClientAppointments(id),
-      getClientBookings(id),
     ]);
 
     // Compute enriched analytics
@@ -103,10 +100,6 @@ export async function GET(
     // Qualified leads (score >= 70)
     const qualifiedLeads = leadsTyped.filter((l) => l.score >= 70).length;
 
-    // Calendar connection status
-    const calendarConnected = await getSetting(`calendar_connected_${id}`);
-    const calendarEmail = await getSetting(`google_calendar_email`);
-
     return NextResponse.json({
       ...client,
       metrics: {
@@ -126,11 +119,6 @@ export async function GET(
       appointments: appointmentsTyped.slice(0, 10),
       upcomingAppointments: upcomingAppointments.slice(0, 5),
       recentLeads: recentLeads.slice(0, 5),
-      bookings: (bookings as Array<Record<string, unknown>>).slice(0, 10),
-      calendar: {
-        connected: calendarConnected === "true",
-        email: calendarEmail || null,
-      },
     });
   } catch (error) {
     return NextResponse.json(

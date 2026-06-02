@@ -91,7 +91,15 @@ export default function GoogleMapsScrapeModal({ onClose, onImport }: GoogleMapsS
 
       let leads: Array<Record<string, unknown>>;
       try {
-        leads = JSON.parse(result.output);
+        const parsed = JSON.parse(result.output);
+        // The scraper-agent wraps leads in { leads: [...], count: ... }
+        if (Array.isArray(parsed)) {
+          leads = parsed;
+        } else if (parsed.leads && Array.isArray(parsed.leads)) {
+          leads = parsed.leads;
+        } else {
+          throw new Error("Unexpected response format");
+        }
       } catch {
         throw new Error("Failed to parse scraper output");
       }

@@ -30,19 +30,19 @@ const mockClient = {
   id: "client-1", name: "Alpha Corp", slug: "alpha-corp", email: "admin@alpha.com",
   company: "Alpha Corp", industry: "Technology", status: "active", isActive: true,
   primaryColor: "#6366f1", createdAt: "2025-01-15T00:00:00Z",
-  metrics: { totalLeads: 45, qualifiedLeads: 18, appointmentsScheduled: 12, appointmentsCompleted: 8, totalBookings: 0 },
+  metrics: { totalLeads: 45, qualifiedLeads: 18, appointmentsScheduled: 12, appointmentsCompleted: 8 },
 };
 const mockClient2 = {
   id: "client-2", name: "Beta LLC", slug: "beta-llc", email: "info@beta.com",
   company: "Beta LLC", industry: "Healthcare", status: "active", isActive: true,
   primaryColor: "#06b6d4", createdAt: "2025-02-20T00:00:00Z",
-  metrics: { totalLeads: 32, qualifiedLeads: 14, appointmentsScheduled: 9, appointmentsCompleted: 6, totalBookings: 0 },
+  metrics: { totalLeads: 32, qualifiedLeads: 14, appointmentsScheduled: 9, appointmentsCompleted: 6 },
 };
 const mockClient3 = {
   id: "client-3", name: "Gamma LLC", slug: "gamma-llc", email: "hello@gamma.com",
   company: "Gamma LLC", industry: "Finance", status: "active", isActive: true,
   primaryColor: "#f59e0b", createdAt: "2025-03-10T00:00:00Z",
-  metrics: { totalLeads: 67, qualifiedLeads: 29, appointmentsScheduled: 21, appointmentsCompleted: 15, totalBookings: 0 },
+  metrics: { totalLeads: 67, qualifiedLeads: 29, appointmentsScheduled: 21, appointmentsCompleted: 15 },
 };
 const mockClients = [mockClient, mockClient2, mockClient3];
 
@@ -54,9 +54,9 @@ import AdminClientsPage from "../AdminClientsPage";
 
 // Detail data per client
 const clientDetails: Record<string, unknown> = {
-  "client-1": { ...mockClient, leads: [], appointments: [], bookings: [] },
-  "client-2": { ...mockClient2, leads: [], appointments: [], bookings: [] },
-  "client-3": { ...mockClient3, leads: [], appointments: [], bookings: [] },
+  "client-1": { ...mockClient, leads: [], appointments: [] },
+  "client-2": { ...mockClient2, leads: [], appointments: [] },
+  "client-3": { ...mockClient3, leads: [], appointments: [] },
 };
 
 describe("AdminClientsPage", () => {

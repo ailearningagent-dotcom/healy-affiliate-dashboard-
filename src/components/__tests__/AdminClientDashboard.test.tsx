@@ -46,7 +46,6 @@ const mockClientData = {
     qualifiedLeads: 18,
     appointmentsScheduled: 12,
     appointmentsCompleted: 8,
-    totalBookings: 10,
     totalAppointments: 12,
     conversionRate: 18.5,
   },
@@ -70,8 +69,6 @@ const mockClientData = {
     { id: "lead-1", name: "John Doe", role: "CEO", company: "Acme Corp", status: "qualified", score: 85, email: "john@acme.com" },
     { id: "lead-2", name: "Jane Smith", role: "Director", company: "Beta Inc", status: "contacted", score: 72, email: "jane@beta.com" },
   ],
-  bookings: [],
-  calendar: { connected: true, email: "admin@acme.com" },
 };
 
 describe("AdminClientDashboard", () => {
@@ -132,13 +129,6 @@ describe("AdminClientDashboard", () => {
     await waitFor(() => {
       const elements = screen.getAllByText(/Jane Smith/i);
       expect(elements.length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  it("shows calendar connection status", async () => {
-    render(<AdminClientDashboard />);
-    await waitFor(() => {
-      expect(screen.getByText(/Calendar Connected/i)).toBeInTheDocument();
     });
   });
 

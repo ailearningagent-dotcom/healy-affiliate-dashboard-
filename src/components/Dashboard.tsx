@@ -10,18 +10,13 @@ import {
   Target,
   Mail,
   BarChart3,
-  Crown,
-  DollarSign,
-  Search,
-  Palette,
-  Building2,
   ArrowUpRight,
   ArrowDownRight,
   Snowflake,
   Flame,
   Sun,
 } from "lucide-react";
-import type { DashboardMetrics, TeamSummary } from "@/lib/agents/types";
+import type { DashboardMetrics } from "@/lib/agents/types";
 import {
   BarChart,
   Bar,
@@ -32,12 +27,6 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  Legend,
 } from "recharts";
 import clsx from "clsx";
 
@@ -52,7 +41,6 @@ const DEFAULT_METRICS: DashboardMetrics = {
   activeNurtureSequences: 0,
   conversionRate: 0,
   recentActivity: [],
-  teamMetrics: null,
   coldLeads: 0,
   warmLeads: 0,
   hotLeads: 0,
@@ -93,30 +81,6 @@ const KPI_CARDS = [
   },
 ];
 
-const DEPT_ICONS: Record<string, React.ElementType> = {
-  "Executive Office": Crown,
-  "Finance Department": DollarSign,
-  "Data & Research": Search,
-  "Creative Studio": Palette,
-  "Sales Development": TrendingUp,
-};
-
-const DEPT_COLORS: Record<string, string> = {
-  "Executive Office": "bg-purple-50 text-purple-700",
-  "Finance Department": "bg-emerald-50 text-emerald-700",
-  "Data & Research": "bg-blue-50 text-blue-700",
-  "Creative Studio": "bg-pink-50 text-pink-700",
-  "Sales Development": "bg-amber-50 text-amber-700",
-};
-
-const DEPT_BAR_COLORS: Record<string, string> = {
-  "Executive Office": "bg-purple-500",
-  "Finance Department": "bg-emerald-500",
-  "Data & Research": "bg-blue-500",
-  "Creative Studio": "bg-pink-500",
-  "Sales Development": "bg-amber-500",
-};
-
 function MetricCard({
   label,
   value,
@@ -155,72 +119,6 @@ function MetricCard({
   );
 }
 
-function OrgTeamSection({ team }: { team: TeamSummary | null }) {
-  if (!team) return null;
-
-  return (
-    <div className="rounded-xl border border-surface-200 bg-white p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-surface-500" />
-          <h3 className="text-sm font-semibold text-surface-900">AI Org Team</h3>
-        </div>
-        <button
-          onClick={() => (window.location.href = "/hierarchy")}
-          className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
-        >
-          View hierarchy
-        </button>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {team.departments.map((dept) => {
-          const DeptIcon = DEPT_ICONS[dept.name] ?? Building2;
-          const colorClass = DEPT_COLORS[dept.name] ?? "bg-surface-50 text-surface-600";
-          const barColor = DEPT_BAR_COLORS[dept.name] ?? "bg-surface-500";
-          const statusColor =
-            dept.status === "operational"
-              ? "bg-emerald-500"
-              : dept.status === "busy"
-                ? "bg-amber-500"
-                : "bg-surface-300";
-
-          return (
-            <div
-              key={dept.name}
-              className="rounded-lg border border-surface-200 bg-white p-3 transition-all hover:shadow-sm"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={clsx("flex h-7 w-7 items-center justify-center rounded-md", colorClass.split(" ")[0])}>
-                  <DeptIcon className={clsx("h-3.5 w-3.5", colorClass.split(" ")[1])} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-surface-900 truncate">{dept.name}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className={clsx("h-1.5 w-1.5 rounded-full", statusColor)} />
-                    <span className="text-[10px] text-surface-400 capitalize">{dept.status}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-surface-500">Tasks: {dept.taskCount}</span>
-                  <span className="text-surface-500">{dept.performance}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-surface-100 overflow-hidden">
-                  <div
-                    className={clsx("h-full rounded-full transition-all duration-500", barColor)}
-                    style={{ width: `${dept.performance}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function ActivityFeed({ activities }: { activities: DashboardMetrics["recentActivity"] }) {
   if (activities.length === 0) {
     return (
@@ -245,33 +143,23 @@ function ActivityFeed({ activities }: { activities: DashboardMetrics["recentActi
           <div
             className={clsx(
               "flex h-8 w-8 items-center justify-center rounded-full",
-              activity.type === "content" || activity.type === "design"
+              activity.type === "content"
                 ? "bg-blue-50 text-blue-600"
-                : activity.type === "research" || activity.type === "analyst"
+                : activity.type === "research"
                   ? "bg-violet-50 text-violet-600"
                   : activity.type === "outreach" || activity.type === "sales"
                     ? "bg-amber-50 text-amber-600"
                     : activity.type === "appointment"
                       ? "bg-emerald-50 text-emerald-600"
-                      : activity.type === "ceo"
-                        ? "bg-purple-50 text-purple-600"
-                        : activity.type === "cfo"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-surface-100 text-surface-600"
+                      : "bg-surface-100 text-surface-600"
             )}
           >
             {activity.type === "content" ? (
               <FileText className="h-4 w-4" />
-            ) : activity.type === "research" || activity.type === "analyst" ? (
+            ) : activity.type === "research" ? (
               <Target className="h-4 w-4" />
             ) : activity.type === "outreach" || activity.type === "sales" ? (
               <Mail className="h-4 w-4" />
-            ) : activity.type === "ceo" ? (
-              <Crown className="h-4 w-4" />
-            ) : activity.type === "cfo" ? (
-              <DollarSign className="h-4 w-4" />
-            ) : activity.type === "design" ? (
-              <Palette className="h-4 w-4" />
             ) : (
               <Activity className="h-4 w-4" />
             )}
@@ -337,12 +225,6 @@ export default function Dashboard() {
     { name: "Leads", value: metrics.leadsSourcedThisWeek, fill: "#6366f1" },
     { name: "Nurture", value: metrics.activeNurtureSequences, fill: "#22c55e" },
   ];
-
-  const deptRadarData = metrics.teamMetrics?.departments.map((d) => ({
-    department: d.name.split(" ")[0],
-    performance: d.performance,
-    tasks: Math.min(d.taskCount * 20, 100),
-  })) ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -484,50 +366,20 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Charts Row 2 — Department Radar + KPIs */}
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Department Radar Chart */}
-        <div className="rounded-xl border border-surface-200 bg-white p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="h-4 w-4 text-surface-500" />
-            <h3 className="text-sm font-semibold text-surface-900">Dept. Performance</h3>
-          </div>
-          <div className="h-56 w-full">
-            {deptRadarData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={224}>
-                <RadarChart data={deptRadarData}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="department" tick={{ fontSize: 10, fill: "#64748b" }} />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9, fill: "#94a3b8" }} />
-                  <Radar name="Performance" dataKey="performance" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-                  <Radar name="Task Load" dataKey="tasks" stroke="#22c55e" fill="#22c55e" fillOpacity={0.2} />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-surface-400">
-                No department data yet
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="rounded-xl border border-surface-200 bg-white p-5">
+        <div className="rounded-xl border border-surface-200 bg-white p-5 lg:col-span-3">
           <h3 className="text-sm font-semibold text-surface-900 mb-4">Quick Actions</h3>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: "🧠 CEO — Set Strategy", type: "ceo", color: "bg-purple-50 text-purple-700 hover:bg-purple-100" },
-              { label: "💰 CFO — Budget Plan", type: "cfo", color: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
-              { label: "📊 Analyst — Find Leads", type: "analyst", color: "bg-blue-50 text-blue-700 hover:bg-blue-100" },
-              { label: "🎨 Design — Create Assets", type: "design", color: "bg-pink-50 text-pink-700 hover:bg-pink-100" },
-              { label: "📈 Sales — Book Consults", type: "sales", color: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
+              { label: "📝 Content Creator", href: "/agents", color: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
+              { label: "🔍 Research Prospects", href: "/agents", color: "bg-violet-50 text-violet-700 hover:bg-violet-100" },
+              { label: "📧 Outreach & Book", href: "/agents", color: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
+              { label: "🗺️ Scrape Leads", href: "/agents", color: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100" },
             ].map((action) => (
               <button
                 key={action.label}
-                onClick={() => {
-                  window.location.href = "/hierarchy";
-                }}
+                onClick={() => window.location.href = action.href}
                 className={clsx(
                   "w-full rounded-lg px-4 py-2.5 text-left text-sm font-medium transition-all duration-200",
                   action.color
@@ -537,11 +389,6 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Org Team Section */}
-        <div className="rounded-xl border border-surface-200 bg-white p-5">
-          <OrgTeamSection team={metrics.teamMetrics ?? null} />
         </div>
       </div>
 

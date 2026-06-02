@@ -71,16 +71,17 @@ describe("NurtureEngine", () => {
       expect(sequence.steps[1].delayDays).toBe(2);
     });
 
-    it("creates different step types for different personas", async () => {
+    it("creates 20 email steps for any persona (Healy 90-day sequence)", async () => {
       const practitioner = createTestLead({
         personaType: "practitioner",
         name: "Dr. James Chen",
       });
       const sequence = await engine.createSequence(practitioner);
 
-      // Practitioners should get linkedin_message steps
+      // Healy sequences are all email, spanning 90 days
       const types = sequence.steps.map((s) => s.type);
-      expect(types).toContain("linkedin_message");
+      expect(types.length).toBe(20);
+      expect(types.every((t) => t === "email")).toBe(true);
     });
 
     it("assigns each step a unique ID", async () => {

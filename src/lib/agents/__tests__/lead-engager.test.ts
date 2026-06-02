@@ -123,11 +123,8 @@ describe("LeadEngager", () => {
   });
 
   describe("engageLead", () => {
-    it("engages a lead with email and WhatsApp, returning engagement result", async () => {
-      // Make WhatsApp connected so we test both channels
-      const { isWhatsAppConnected, sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
-      vi.mocked(isWhatsAppConnected).mockResolvedValue(true);
-      vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+    it("engages a lead with email (Healy 90-day sequences are email-only)", async () => {
+      const { sendEmail } = await import("@/lib/email/email-sender");
 
       const lead = createTestLead();
       const result = await engageLead(lead);
@@ -136,9 +133,9 @@ describe("LeadEngager", () => {
       expect(result.leadName).toBe("Alice Johnson");
       expect(result.sequenceCreated).toBe(true);
       expect(result.emailSent).toBe(true);
-      expect(result.whatsappSent).toBe(true);
       expect(result.emailError).toBeUndefined();
-      expect(result.whatsappError).toBeUndefined();
+      // WhatsApp is not sent in Healy email-only sequences
+      expect(result.whatsappSent).toBe(false);
     });
 
     it("creates a nurture sequence when none exists", async () => {
@@ -220,10 +217,10 @@ describe("LeadEngager", () => {
       const result = await engageLead(lead);
 
       expect(result.whatsappSent).toBe(false);
-      expect(result.whatsappError).toContain("WhatsApp not connected");
+      expect(result.whatsappError).toContain("whatsapp_unavailable");
     });
 
-    it("sends WhatsApp message when connected and lead has phone", async () => {
+    it("does not send WhatsApp by default — Healy 90-day sequences are email-only", async () => {
       const { isWhatsAppConnected, sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
       vi.mocked(isWhatsAppConnected).mockResolvedValue(true);
       vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
@@ -231,11 +228,9 @@ describe("LeadEngager", () => {
 
       const result = await engageLead(lead);
 
-      expect(result.whatsappSent).toBe(true);
-      expect(sendWhatsAppMessage).toHaveBeenCalledWith(
-        "+1 (555) 123-4567",
-        expect.any(String)
-      );
+      // Healy sequences only have email steps, no WhatsApp
+      expect(result.whatsappSent).toBe(false);
+      expect(result.whatsappError).toContain("No WhatsApp step");
     });
 
     it("updates lead status to contacted after successful engagement", async () => {
@@ -282,7 +277,7 @@ describe("LeadEngager", () => {
       expect(result.emailError).toBe("SMTP connection refused");
     });
 
-    it("handles WhatsApp send failure gracefully", async () => {
+    it("handles WhatsApp send failure gracefully (Healy sequences are email-only — no WhatsApp step)", async () => {
       const { isWhatsAppConnected, sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
       vi.mocked(isWhatsAppConnected).mockResolvedValue(true);
       vi.mocked(sendWhatsAppMessage).mockResolvedValue({
@@ -294,8 +289,9 @@ describe("LeadEngager", () => {
 
       const result = await engageLead(lead);
 
+      // Healy 90-day sequences are email-only, so WhatsApp won't be sent
       expect(result.whatsappSent).toBe(false);
-      expect(result.whatsappError).toBe("Invalid phone number");
+      expect(result.whatsappError).toContain("No WhatsApp step");
     });
 
     it("handles unexpected errors without crashing", async () => {

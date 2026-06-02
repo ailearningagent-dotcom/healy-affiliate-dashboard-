@@ -5,12 +5,10 @@ import { checkRateLimit, getRateLimitId } from "@/lib/rate-limit";
 const handler = auth((req) => {
   const { pathname } = req.nextUrl;
 
-  // Skip auth for login page, auth API, public booking page, and booking API
+  // Skip auth for login page, auth API, public pages, interactive chat
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/book") ||
-    pathname.startsWith("/api/book") ||
     pathname.startsWith("/showcase") ||
     pathname.startsWith("/agents/playground")
   ) {

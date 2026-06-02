@@ -30,7 +30,7 @@ export function getBusinessProfileFromContext(context?: Record<string, unknown>)
   return getDefaultBusinessProfile();
 }
 
-export type AgentType = "ceo" | "cfo" | "analyst" | "design" | "sales" | "developer" | "content" | "research" | "outreach" | "scraper";
+export type AgentType = "sales" | "content" | "research" | "outreach" | "scraper";
 
 export type AgentStatus = "idle" | "running" | "completed" | "error";
 
@@ -52,147 +52,6 @@ export interface AgentResult {
   error?: string;
   createdAt: Date;
   metadata?: Record<string, unknown>;
-}
-
-// =============== SUB-AGENT TYPE DEFINITIONS ===============
-
-export interface SubAgentTask {
-  id: string;
-  name: string;
-  description: string;
-  assignedTo: string; // department/agent name
-  priority: "critical" | "high" | "medium" | "low";
-  status: "pending" | "in_progress" | "completed" | "blocked";
-  dependsOn: string[]; // task IDs this depends on
-  createdAt: Date;
-  completedAt?: Date;
-  output?: string;
-}
-
-export interface DepartmentReport {
-  department: string;
-  status: "operational" | "busy" | "blocked" | "idle";
-  activeTasks: number;
-  completedToday: number;
-  performance: number; // 0-100
-  issues: string[];
-  lastActivity: Date;
-  metrics: Record<string, number | string>;
-}
-
-// =============== CEO ===============
-export type CEOSubAgent = "task-prioritizer" | "department-coordinator" | "performance-reviewer";
-
-export interface CEOBrief {
-  goal: string;
-  timeframe: string;
-  budget?: string;
-  targetOutcome: string;
-  priority: "critical" | "high" | "medium" | "low";
-}
-
-export interface CEOPlan {
-  executiveSummary: string;
-  prioritizedTasks: { task: string; department: string; priority: string; deadline: string }[];
-  resourceAllocation: { department: string; budget: string; hours: string }[];
-  timeline: { phase: string; duration: string; deliverables: string }[];
-  riskAssessment: { risk: string; likelihood: string; mitigation: string }[];
-  kpis: { metric: string; target: string; measurement: string }[];
-  departments: { name: string; primaryGoal: string; subTasks: string[] }[];
-}
-
-// =============== CFO ===============
-export type CFOSubAgent = "budget-planner" | "roi-analyst" | "cost-tracker";
-
-export interface CFOBrief {
-  campaignName: string;
-  budget: number;
-  projectedLeads: number;
-  projectedAppointments: number;
-  durationDays: number;
-  channels: string[];
-}
-
-export interface FinancialReport {
-  budgetAllocation: { category: string; amount: number; percentage: number }[];
-  costPerLead: { channel: string; costPerLead: number; projectedLeads: number }[];
-  roiProjection: { metric: string; value: string; confidence: string }[];
-  breakevenAnalysis: { breakevenPoint: string; timelineDays: number; notes: string };
-  recommendations: string[];
-}
-
-// =============== DATA ANALYST ===============
-export type AnalystSubAgent = "web-scraper" | "lead-enricher" | "market-analyst";
-
-export interface AnalystBrief {
-  targetMarket: string;
-  industry: string;
-  location: string;
-  roles: string[];
-  maxLeads: number;
-  sources: ("directory" | "web" | "social" | "public_data")[];
-}
-
-export interface ScrapedLeadData {
-  name: string;
-  company: string;
-  role: string;
-  email: string;
-  phone?: string;
-  linkedin?: string;
-  website?: string;
-  wellnessInterest?: string;
-  source: string;
-  score: number;
-}
-
-export interface MarketIntelligence {
-  trends: { trend: string; impact: string; actionItem: string }[];
-  competitorAnalysis: { competitor: string; strengths: string; weaknesses: string; gap: string }[];
-  keywordOpportunities: { keyword: string; volume: string; difficulty: string; opportunity: string }[];
-  audienceInsights: { segment: string; painPoints: string; channelPreference: string; messageAngle: string }[];
-}
-
-// =============== DESIGN TEAM ===============
-export type DesignSubAgent = "poster-creator" | "video-strategist" | "brand-asset-manager";
-
-export interface DesignBrief {
-  campaignName: string;
-  topic: string;
-  targetAudience: string;
-  platforms: ("instagram" | "facebook" | "linkedin" | "tiktok" | "youtube" | "website")[];
-  brandColors: string[];
-  vibe: "professional" | "educational" | "emotional" | "trendy" | "minimalist";
-  includeLogos: boolean;
-}
-
-export interface PosterDesign {
-  title: string;
-  headline: string;
-  subheadline: string;
-  visualDescription: string;
-  colorPalette: { primary: string; secondary: string; accent: string; background: string };
-  typography: string;
-  layout: string;
-  cta: string;
-  dimensions: string;
-  hookText: string;
-  designNotes: string;
-  platformOptimizations: { platform: string; adjustments: string }[];
-}
-
-export interface ViralVideoConcept {
-  title: string;
-  format: "tiktok" | "reels" | "youtube-short" | "story" | "long-form";
-  duration: string;
-  hook: string;
-  scriptStructure: { scene: number; visual: string; audio: string; text: string; duration: string }[];
-  musicSuggestion: string;
-  captionStrategy: string;
-  hashtags: string[];
-  cta: string;
-  viralPotential: number; // 0-100
-  productionNotes: string;
 }
 
 // =============== SALES TEAM ===============
@@ -223,27 +82,6 @@ export interface SalesCadence {
   totalDays: number;
   touchpoints: number;
   escalationTrigger: string;
-}
-
-// =============== DEVELOPER ===============
-export type DeveloperSubAgent = "error-fixer" | "code-reviewer" | "dependency-manager" | "app-health-monitor";
-
-export interface DeveloperBrief {
-  projectType: string;
-  errorLogs?: string;
-  filePaths?: string[];
-  recentChanges?: string;
-  specificIssue?: string;
-}
-
-export interface FixReport {
-  issueSummary: string;
-  rootCause: string;
-  severity: "critical" | "high" | "medium" | "low";
-  fixSteps: { file: string; change: string; reasoning: string }[];
-  estimatedTimeMinutes: number;
-  preventiveMeasures: string[];
-  affectedFiles: string[];
 }
 
 // =============== COMMON TYPES ===============
@@ -296,6 +134,8 @@ export interface OutreachMessage {
 
 export type LeadSource = "manual" | "directory" | "apollo" | "linkedin" | "csv_import" | "referral" | "website" | "google-maps";
 
+export type Region = "apac" | "americas" | "europe" | "middle-east";
+
 export type LeadTemperature = "cold" | "warm" | "hot";
 
 /**
@@ -316,7 +156,7 @@ export function computeLeadTemperature(lead: { score: number; status: string; ha
 
 export type LeadSourceStatus = "sourced" | "contacted" | "nurturing" | "warm" | "hot" | "consultation_booked" | "closed_won" | "closed_lost";
 
-export type NurtureStepType = "email" | "whatsapp" | "phone_call" | "sms" | "linkedin_message" | "social_engagement";
+export type NurtureStepType = "chat" | "email" | "whatsapp" | "phone_call" | "sms" | "linkedin_message" | "social_engagement";
 
 export interface NurtureStep {
   id: string;
@@ -364,6 +204,12 @@ export interface ScrapedLead {
   score: number;
   notes: string;
   personaType: string;
+  // ==== Business details from Google Maps ====
+  rating?: string;        // e.g. "4.5"
+  reviews?: string;       // e.g. "123"
+  address?: string;       // Full street address
+  businessDetails?: string; // Rich description / summary of the business
+  category?: string;      // Business type (e.g. "Holistic health", "Chiropractor")
 }
 
 export interface Client {
@@ -397,6 +243,10 @@ export interface Lead {
   createdAt: Date;
   lastContactedAt?: Date;
   nextFollowUp?: Date;
+  // ==== Country/Region (for international lead targeting) ====
+  country?: string;       // ISO 3166-1 alpha-2 code: "IN", "US", "DE", etc.
+  region?: Region;        // "apac" | "americas" | "europe" | "middle-east"
+  language?: string;      // Primary language code: "en", "hi", "es", etc.
 }
 
 export interface PipelineMetrics {
@@ -420,16 +270,6 @@ export interface Appointment {
   createdBy: string;
 }
 
-export interface CodeHealthReport {
-  totalFiles: number;
-  totalIssues: number;
-  issuesBySeverity: { critical: number; high: number; medium: number; low: number };
-  fixableIssues: number;
-  topAffectedFiles: { file: string; issues: number; severity: string }[];
-  recommendations: string[];
-  lastScan: Date;
-}
-
 export interface DashboardMetrics {
   totalLeads: number;
   qualifiedLeads: number;
@@ -441,16 +281,9 @@ export interface DashboardMetrics {
   activeNurtureSequences: number;
   conversionRate: number;
   recentActivity: ActivityItem[];
-  teamMetrics: TeamSummary | null;
   coldLeads: number;
   warmLeads: number;
   hotLeads: number;
-}
-
-export interface TeamSummary {
-  departments: { name: string; status: string; taskCount: number; performance: number }[];
-  activeProjects: number;
-  totalTeamMembers: number;
 }
 
 export interface ActivityItem {

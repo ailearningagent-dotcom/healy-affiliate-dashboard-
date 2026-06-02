@@ -1,5 +1,18 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+const AUTH_SECRET = process.env.AUTH_SECRET;
+if (!AUTH_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "AUTH_SECRET environment variable is required in production. " +
+    "Generate one with: openssl rand -base64 32"
+  );
+}
+
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -9,19 +22,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        // NextAuth credentials only contains defined credential fields.
+        // Extract IP from the raw credentials object safely.
+        const creds = credentials as Record<string, unknown> | undefined;
+        const ip = typeof creds?.ip === "string" ? creds.ip : undefined;
+        const identifier = ip || "auth:unknown";
+
+        const rateCheck = checkRateLimit(identifier, { maxRequests: 5, windowSeconds: 300 });
+        if (!rateCheck.allowed) {
+          throw new Error(`Too many attempts. Try again in ${rateCheck.retryAfter} seconds.`);
+        }
+
         const password = credentials?.password as string | undefined;
-        const adminPassword = process.env.ADMIN_PASSWORD;
-        if (!adminPassword) {
-          // If no admin password is set, allow access in dev mode
+        if (!password) return null;
+
+        // Prefer hashed password, fallback to plain text with warning
+        if (ADMIN_PASSWORD_HASH) {
+          const valid = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+          if (!valid) return null;
+        } else if (ADMIN_PASSWORD) {
+          if (password !== ADMIN_PASSWORD) return null;
+          console.warn(
+            "[Auth] ADMIN_PASSWORD is set without ADMIN_PASSWORD_HASH. " +
+            "Generate a hash with: node -e \"require('bcryptjs').hash('your-password', 12).then(console.log)\""
+          );
+        } else {
           if (process.env.NODE_ENV === "development") {
             return { id: "admin", name: "Admin" };
           }
           return null;
         }
-        if (password === adminPassword) {
-          return { id: "admin", name: "Admin" };
-        }
-        return null;
+
+        return { id: "admin", name: "Admin" };
       },
     }),
   ],
@@ -29,10 +61,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   trustHost: true,
-  secret: process.env.AUTH_SECRET || "dev-secret-do-not-use-in-production-" + Math.random().toString(36).slice(2),
+  secret: AUTH_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret-insecure" : undefined),
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 24 * 60 * 60,
   },
   callbacks: {
     authorized({ auth: session }) {

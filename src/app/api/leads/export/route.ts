@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgentManager } from "@/lib/agents/agent-manager";
+import { extractRatingFromNotes, extractReviewsFromNotes, extractAddressFromNotes, extractCategoryFromNotes } from "@/lib/agents/email-personalizer";
 
 function escapeCsv(value: unknown): string {
   const str = value == null ? "" : String(value);
@@ -15,7 +16,7 @@ export async function GET() {
     const manager = getAgentManager();
     const leads = await manager.getLeads();
 
-    const headers = ["Name", "Company", "Role", "Email", "Phone", "Status", "Score", "Persona", "Source", "Notes", "Created"];
+    const headers = ["Name", "Company", "Role", "Email", "Phone", "Status", "Score", "Persona", "Source", "Rating", "Reviews", "Address", "Category", "Notes", "Created"];
 
     const rows = leads.map((lead) => [
       lead.name,
@@ -27,6 +28,10 @@ export async function GET() {
       String(lead.score),
       lead.personaType,
       lead.source,
+      extractRatingFromNotes(lead.notes),
+      extractReviewsFromNotes(lead.notes),
+      extractAddressFromNotes(lead.notes),
+      extractCategoryFromNotes(lead.notes),
       lead.notes,
       lead.createdAt?.toISOString().split("T")[0] ?? "",
     ]);

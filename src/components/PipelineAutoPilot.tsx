@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Zap,
+  Filter,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -31,6 +32,15 @@ interface PipelineState {
   error: string | null;
   cycleCount: number;
   uptime: number;
+}
+
+interface TickResultData {
+  leadsAdded: number;
+  leadsEnriched: number;
+  sequencesCreated: number;
+  followupsSent: number;
+  cost: number;
+  skipped?: number;
 }
 
 interface PipelineConfig {
@@ -87,10 +97,13 @@ export default function PipelineAutoPilot() {
       if (data.state) setState(data.state);
       if (data.config) setConfig(data.config);
       if (data.result) {
-        const r = data.result;
-        setTickResult(
-          `✅ +${r.leadsAdded} leads, ${r.leadsEnriched} enriched, ${r.sequencesCreated} sequences — $${r.cost.toFixed(6)}`
-        );
+        const r = data.result as TickResultData;
+        const parts = [`✅ +${r.leadsAdded} leads`];
+        if (r.skipped && r.skipped > 0) parts.push(`🚫 ${r.skipped} skipped (invalid)`);
+        parts.push(`${r.leadsEnriched} enriched`);
+        parts.push(`${r.sequencesCreated} sequences`);
+        parts.push(`$${r.cost.toFixed(6)}`);
+        setTickResult(parts.join(", "));
         setTimeout(() => setTickResult(null), 8000);
       }
     } catch (e) {
@@ -221,6 +234,11 @@ export default function PipelineAutoPilot() {
               icon={<Activity className="h-3.5 w-3.5" />}
               label="Cycles Run"
               value={String(state.cycleCount || 0)}
+            />
+            <StatItem
+              icon={<Filter className="h-3.5 w-3.5" />}
+              label="Validation"
+              value={state.totalLeadsSourced > 0 ? "Active" : "—"}
             />
             <StatItem
               icon={<Clock className="h-3.5 w-3.5" />}

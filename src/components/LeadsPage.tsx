@@ -23,8 +23,13 @@ import {
   Sun,
   Flame,
   Layers,
+  Map,
+  RefreshCw,
+  Tag,
+  ThumbsUp,
 } from "lucide-react";
 import type { Lead, Appointment, LeadTemperature } from "@/lib/agents/types";
+import { extractRatingFromNotes, extractReviewsFromNotes, extractAddressFromNotes, extractCategoryFromNotes } from "@/lib/agents/email-personalizer";
 import GoogleMapsScrapeModal from "./GoogleMapsScrapeModal";
 import PipelineAutoPilot from "./PipelineAutoPilot";
 import MassScrapePanel from "./MassScrapePanel";
@@ -93,6 +98,9 @@ function LeadRow({
   isSelected: boolean;
 }) {
   const TempIcon = TEMPERATURE_ICONS[lead.temperature ?? "cold"];
+  const rating = extractRatingFromNotes(lead.notes);
+  const category = extractCategoryFromNotes(lead.notes);
+  const displayCategory = category || lead.personaType?.replace("-", " ");
 
   return (
     <div
@@ -113,14 +121,29 @@ function LeadRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-surface-900">{lead.name}</p>
+          <p className="text-sm font-semibold text-surface-900 truncate">{lead.name}</p>
           <TemperatureBadge temperature={lead.temperature} />
         </div>
         <p className="text-xs text-surface-500 truncate">
-          {lead.role} at {lead.company}
+          {lead.company || lead.role}
         </p>
+        {/* Enriched scraped data badges */}
+        <div className="flex items-center gap-1.5 mt-1">
+          {rating && (
+            <span className="inline-flex items-center gap-0.5 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+              <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+              {rating}
+            </span>
+          )}
+          {displayCategory && (
+            <span className="inline-flex items-center gap-0.5 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 max-w-[120px] truncate">
+              <Tag className="h-2.5 w-2.5" />
+              {displayCategory}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="hidden sm:block">
+      <div className="hidden sm:flex sm:flex-col sm:items-end sm:gap-1">
         <span
           className={clsx(
             "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -129,8 +152,6 @@ function LeadRow({
         >
           {STATUS_LABELS[lead.status]}
         </span>
-      </div>
-      <div className="flex items-center gap-1.5">
         <div className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1">
           <Star className="h-3 w-3 text-amber-500" />
           <span className="text-xs font-medium text-amber-700">{lead.score}</span>
@@ -143,6 +164,10 @@ function LeadRow({
 
 function LeadDetail({ lead }: { lead: Lead }) {
   const TempIcon = TEMPERATURE_ICONS[lead.temperature ?? "cold"];
+  const rating = extractRatingFromNotes(lead.notes);
+  const reviews = extractReviewsFromNotes(lead.notes);
+  const address = extractAddressFromNotes(lead.notes);
+  const category = extractCategoryFromNotes(lead.notes);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -164,6 +189,53 @@ function LeadDetail({ lead }: { lead: Lead }) {
           </p>
         </div>
       </div>
+
+      {/* Enriched scraped data section */}
+      {(rating || category || address) && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Google Maps Data
+          </p>
+          <div className="rounded-lg bg-surface-50 p-3 space-y-2">
+            {rating && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-500">Rating</span>
+                <span className="flex items-center gap-1 text-sm font-semibold text-amber-700">
+                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                  {rating}
+                  {reviews && <span className="text-xs font-normal text-surface-400">({reviews} reviews)</span>}
+                </span>
+              </div>
+            )}
+            {category && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-500">Category</span>
+                <span className="flex items-center gap-1 text-sm font-medium text-blue-700">
+                  <Tag className="h-3.5 w-3.5" />
+                  {category}
+                </span>
+              </div>
+            )}
+            {address && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-500">Location</span>
+                <span className="flex items-center gap-1 text-sm text-surface-600 text-right max-w-[200px]">
+                  <Map className="h-3.5 w-3.5 text-surface-400" />
+                  {address}
+                </span>
+              </div>
+            )}
+            {lead.sourceUrl && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-surface-500">Website</span>
+                <a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:text-primary-700 underline truncate max-w-[200px]">
+                  {lead.sourceUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <button className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-3 py-2 text-xs font-medium text-surface-600 hover:bg-surface-50 transition-colors">
@@ -217,7 +289,7 @@ function LeadDetail({ lead }: { lead: Lead }) {
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-surface-400">Notes</p>
-        <p className="text-sm text-surface-600 bg-surface-50 rounded-lg p-3">
+        <p className="text-sm text-surface-600 bg-surface-50 rounded-lg p-3 whitespace-pre-wrap">
           {lead.notes || "No notes yet."}
         </p>
       </div>
@@ -421,12 +493,18 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [temperatureFilter, setTemperatureFilter] = useState<string>("all");
+  const [ratingFilter, setRatingFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [view, setView] = useState<"leads" | "appointments">("leads");
   const [showImport, setShowImport] = useState(false);
   const [showMapsScrape, setShowMapsScrape] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [recomputingTemps, setRecomputingTemps] = useState(false);
   const [tempRecomputeResult, setTempRecomputeResult] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [reparsing, setReparsing] = useState(false);
+  const [reparseResult, setReparseResult] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -534,7 +612,7 @@ export default function LeadsPage() {
     setTimeout(() => setTempRecomputeResult(null), 8000);
   }
 
-  async function exportToExcel() {
+  async function exportToCSV() {
     try {
       const res = await fetch("/api/leads/export");
       if (!res.ok) throw new Error("Export failed");
@@ -542,20 +620,69 @@ export default function LeadsPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `leads-${new Date().toISOString().split("T")[0]}.xlsx`;
+      a.download = `leads-${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      console.error("Export failed:", e);
+      // Export failed silently — user can retry
     }
+  }
+
+  async function handleClearAll() {
+    setClearing(true);
+    try {
+      const res = await fetch("/api/leads/clear", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setShowClearConfirm(false);
+        await loadData();
+        setImportMessage("All leads, appointments, and sequences cleared. Fresh start ready!");
+        setTimeout(() => setImportMessage(null), 4000);
+      }
+    } catch (e) {
+      setImportMessage("❌ Failed to clear data. Please try again.");
+      setTimeout(() => setImportMessage(null), 4000);
+    }
+    setClearing(false);
+  }
+
+  async function handleReparseNotes() {
+    setReparsing(true);
+    setReparseResult(null);
+    try {
+      const res = await fetch("/api/leads/reparse", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setReparseResult(
+          `✅ ${data.message}`
+        );
+        // Reload to reflect any updates
+        setTimeout(() => loadData(), 500);
+      } else {
+        setReparseResult(`❌ Error: ${data.error}`);
+      }
+    } catch (e) {
+      setReparseResult(`❌ Error: ${e instanceof Error ? e.message : "Unknown"}`);
+    }
+    setReparsing(false);
+    setTimeout(() => setReparseResult(null), 8000);
   }
 
   // Temperature breakdown counts
   const coldCount = leads.filter((l) => (l.temperature ?? "cold") === "cold").length;
   const warmCount = leads.filter((l) => l.temperature === "warm").length;
   const hotCount = leads.filter((l) => l.temperature === "hot").length;
+
+  // Compute unique categories and rating ranges from all leads
+  const uniqueCategories = Array.from(
+    new Set(
+      leads
+        .map((l) => extractCategoryFromNotes(l.notes))
+        .filter((c): c is string => !!c)
+    )
+  ).sort();
 
   const filteredLeads = leads.filter((l) => {
     const matchesSearch =
@@ -564,7 +691,29 @@ export default function LeadsPage() {
       l.email.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || l.status === statusFilter;
     const matchesTemperature = temperatureFilter === "all" || (l.temperature ?? "cold") === temperatureFilter;
-    return matchesSearch && matchesStatus && matchesTemperature;
+
+    // Rating filter — parse rating from notes, compare as float
+    let matchesRating = true;
+    if (ratingFilter !== "all") {
+      const ratingStr = extractRatingFromNotes(l.notes);
+      if (ratingStr) {
+        const ratingVal = parseFloat(ratingStr);
+        const minRating = parseFloat(ratingFilter);
+        if (!isNaN(ratingVal) && !isNaN(minRating)) {
+          matchesRating = ratingVal >= minRating;
+        } else {
+          matchesRating = false;
+        }
+      } else {
+        matchesRating = false;
+      }
+    }
+
+    // Category filter
+    const leadCategory = extractCategoryFromNotes(l.notes);
+    const matchesCategory = categoryFilter === "all" || leadCategory === categoryFilter;
+
+    return matchesSearch && matchesStatus && matchesTemperature && matchesRating && matchesCategory;
   });
 
   return (
@@ -629,11 +778,30 @@ export default function LeadsPage() {
             Recompute Temps
           </button>
           <button
-            onClick={exportToExcel}
+            onClick={handleReparseNotes}
+            disabled={reparsing}
+            className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-600 hover:bg-surface-50 hover:border-surface-300 transition-all duration-200 disabled:opacity-50"
+          >
+            {reparsing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Re-parse Notes
+          </button>
+          <button
+            onClick={exportToCSV}
             className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-600 hover:bg-surface-50 hover:border-surface-300 transition-all duration-200"
           >
             <Download className="h-4 w-4" />
             Export
+          </button>
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-all duration-200"
+          >
+            <X className="h-4 w-4" />
+            Clear All
           </button>
         </div>
       </div>
@@ -653,6 +821,18 @@ export default function LeadsPage() {
             <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
           )}
           {tempRecomputeResult}
+        </div>
+      )}
+
+      {/* Re-parse Notes Result Toast */}
+      {reparseResult && (
+        <div className="flex items-center gap-2 rounded-lg bg-surface-50 border border-surface-200 px-4 py-2.5 text-xs text-surface-700 animate-fade-in">
+          {reparseResult.startsWith("✅") ? (
+            <RefreshCw className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+          )}
+          {reparseResult}
         </div>
       )}
 
@@ -735,7 +915,33 @@ export default function LeadsPage() {
                     className="w-full rounded-lg border border-surface-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
                   />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {/* Rating Filter */}
+                <select
+                  name="rating-filter"
+                  value={ratingFilter}
+                  onChange={(e) => setRatingFilter(e.target.value)}
+                  aria-label="Filter by minimum rating"
+                  className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                >
+                  <option value="all">⭐ Any Rating</option>
+                  <option value="4">⭐ 4+ Stars</option>
+                  <option value="3">⭐ 3+ Stars</option>
+                  <option value="2">⭐ 2+ Stars</option>
+                </select>
+                {/* Category Filter */}
+                <select
+                  name="category-filter"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  aria-label="Filter by business category"
+                  className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm max-w-[180px] focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                >
+                  <option value="all">🏷️ All Categories</option>
+                  {uniqueCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
                 {/* Temperature Filter */}                  <select
                     name="temperature-filter"
                     value={temperatureFilter}
@@ -743,7 +949,7 @@ export default function LeadsPage() {
                     aria-label="Filter by temperature"
                     className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 >
-                  <option value="all">All Temp</option>
+                  <option value="all">🌡️ All Temp</option>
                   <option value="cold">❄️ Cold</option>
                   <option value="warm">☀️ Warm</option>
                   <option value="hot">🔥 Hot</option>
@@ -755,7 +961,7 @@ export default function LeadsPage() {
                     aria-label="Filter by status"
                     className="rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">📋 All Status</option>
                   <option value="new">New</option>
                   <option value="contacted">Contacted</option>
                   <option value="qualified">Qualified</option>
@@ -839,6 +1045,49 @@ export default function LeadsPage() {
           onClose={() => setShowMapsScrape(false)}
           onImport={handleMapsImport}
         />
+      )}
+
+      {/* Clear All Data Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => !clearing && setShowClearConfirm(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-surface-200 bg-white p-6 shadow-xl animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-surface-900">Clear All Data?</h3>
+                <p className="text-xs text-surface-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-surface-600 mb-2">
+              This will permanently delete <strong>all leads, appointments, nurture sequences, and agent results</strong> from the system. Settings and client data will be preserved.
+            </p>
+            <p className="text-xs text-surface-400 mb-5">
+              Are you sure you want a fresh start?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                disabled={clearing}
+                className="flex-1 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-medium text-surface-600 hover:bg-surface-50 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              >
+                {clearing ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Clearing...</>
+                ) : (
+                  <><X className="h-4 w-4" /> Yes, Clear Everything</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

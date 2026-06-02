@@ -1,5 +1,5 @@
-import Dashboard from "@/components/Dashboard";
+import AutomationHub from "@/components/AutomationHub";
 
 export default function Home() {
-  return <Dashboard />;
+  return <AutomationHub />;
 }

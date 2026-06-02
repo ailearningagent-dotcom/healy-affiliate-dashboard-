@@ -1,25 +1,25 @@
 /**
- * LeadEngager — Immediate Lead Engagement Trigger
+ * LeadEngager — Immediate Lead Engagement Trigger (Healy Edition)
  *
- * When a new lead is added (manual or auto-scraped), this module:
- * 1. Creates a nurture sequence (default templates, no LLM cost)
- * 2. Sends the first email if the lead has an email address
- * 3. Sends the first WhatsApp message if the lead has a phone number
+ * When a new lead is added, this module:
+ * 1. Creates a 90-day Healy nurture sequence (20 emails)
+ * 2. Sends the first Healy welcome email
+ * 3. Sends the first WhatsApp message (if phone available)
  * 4. Marks the lead as "contacted"
- * 5. Wires booking signals for auto-booker
  *
- * Cost: $0 (uses default templates + Gmail SMTP + WhatsApp Web)
- * LLM personalization: ~$0.00005/lead (Gemini Flash-Lite, optional)
+ * All templates reference Healy products, ask for phone number,
+ * and CTA to https://www.healycommunity.com
  */
 
 import { logger } from "@/lib/logger";
 import { NurtureEngine } from "./nurture-engine";
 import { sendEmail, buildNurtureEmail } from "@/lib/email/email-sender";
 import { sendWhatsAppMessage, isWhatsAppConnected } from "@/lib/whatsapp/whatsapp-web";
-import { callLLM } from "@/lib/llm/call-llm";
-import { getSetting, dbList, upsertLead, upsertResult } from "@/lib/db";
-import { getDefaultProvider, getDefaultModel } from "./default-config";
-import { getDefaultBusinessProfile, computeLeadTemperature, type Lead, type BusinessProfile, type NurtureSequence } from "./types";
+import { getSetting, upsertLead, upsertResult } from "@/lib/db";
+import { computeLeadTemperature, type Lead } from "./types";
+import { detectCountry, getChannelOrderForCountry, getCountryByCode } from "./countries";
+import { HEALY_BUSINESS_NAME, HEALY_SENDER_NAME, HEALY_CTA_LINK, HEALY_SENDER_PHONE, HEALY_WHATSAPP_LINK } from "./healy-email-sequences";
+import { injectLeadData } from "./email-personalizer";
 
 // ========================================================================
 // ENGAGEMENT RESULT
@@ -36,14 +36,17 @@ export interface EngagementResult {
   cost: number;
 }
 
+interface SendResult {
+  success: boolean;
+  error?: string;
+  cost: number;
+  stepIndex: number;
+}
+
 // ========================================================================
 // MAIN ENGAGEMENT FUNCTION
 // ========================================================================
 
-/**
- * Engage a lead immediately after creation.
- * Orchestrates: nurture setup → email → WhatsApp → status update
- */
 export async function engageLead(lead: Lead): Promise<EngagementResult> {
   const result: EngagementResult = {
     leadId: lead.id,
@@ -54,34 +57,75 @@ export async function engageLead(lead: Lead): Promise<EngagementResult> {
     cost: 0,
   };
 
+  if (!lead.email && !lead.phone) {
+    logger.warn("LeadEngager", `Skipping ${lead.name} — no email or phone available`);
+    return result;
+  }
+
   try {
-    // Step 1: Create nurture sequence
     const engine = new NurtureEngine();
     const existingSequences = await engine.getSequencesByLead(lead.id);
     if (existingSequences.length === 0) {
       await engine.createSequence(lead, {
-        name: `Auto-Engage: ${lead.name}`,
+        name: `Healy Journey: ${lead.name}`,
       });
       result.sequenceCreated = true;
+    } else {
+      logger.info("LeadEngager", `Skipping ${lead.name} — already has an existing nurture sequence`);
+      return result;
     }
 
-    // Step 2: Send first email if lead has an email
+    const countryInfo = lead.country ? getCountryByCode(lead.country) : detectCountry({ phone: lead.phone, email: lead.email });
+    const channelOrder = getChannelOrderForCountry(countryInfo);
+
+    let maxSentStepIndex = -1;
+
+    // WhatsApp first for APAC/LATAM countries
+    if (lead.phone && channelOrder[0] === "whatsapp") {
+      const whatsappResult = await sendFirstWhatsApp(lead, engine);
+      result.whatsappSent = whatsappResult.success;
+      result.whatsappError = whatsappResult.error;
+      result.cost += whatsappResult.cost;
+      if (whatsappResult.success) maxSentStepIndex = Math.max(maxSentStepIndex, whatsappResult.stepIndex);
+    }
+
+    // Send first email
     if (lead.email) {
       const emailResult = await sendFirstEmail(lead, engine);
       result.emailSent = emailResult.success;
       result.emailError = emailResult.error;
       result.cost += emailResult.cost;
+      if (emailResult.success) maxSentStepIndex = Math.max(maxSentStepIndex, emailResult.stepIndex);
     }
 
-    // Step 3: Send first WhatsApp message if lead has a phone
-    if (lead.phone) {
+    // WhatsApp for email-priority countries (tried second)
+    if (lead.phone && channelOrder[0] !== "whatsapp" && !result.whatsappSent) {
       const whatsappResult = await sendFirstWhatsApp(lead, engine);
       result.whatsappSent = whatsappResult.success;
       result.whatsappError = whatsappResult.error;
       result.cost += whatsappResult.cost;
+      if (whatsappResult.success) maxSentStepIndex = Math.max(maxSentStepIndex, whatsappResult.stepIndex);
     }
 
-    // Step 4: Update lead status to "contacted" and re-compute temperature
+    // Advance sequence past sent steps
+    if (maxSentStepIndex >= 0) {
+      const seqs = await engine.getSequencesByLead(lead.id);
+      if (seqs.length > 0) {
+        const seqId = seqs[0].id;
+        const seq = await engine.getSequence(seqId);
+        if (seq) {
+          while (seq.currentStep <= maxSentStepIndex) {
+            await engine.advanceSequence(seqId);
+            const updated = await engine.getSequence(seqId);
+            if (!updated || updated.currentStep === seq.currentStep) break;
+            seq.currentStep = updated.currentStep;
+            seq.status = updated.status;
+          }
+        }
+      }
+    }
+
+    // Update lead status
     if (result.emailSent || result.whatsappSent) {
       const updatedTemperature = computeLeadTemperature({
         score: lead.score,
@@ -94,10 +138,9 @@ export async function engageLead(lead: Lead): Promise<EngagementResult> {
         pipelineStage: "contacted",
         temperature: updatedTemperature,
         lastContactedAt: new Date(),
-        nextFollowUp: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
+        nextFollowUp: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
       });
     } else {
-      // Even if no message sent, still re-compute temperature (e.g. scored leads should warm up)
       const updatedTemperature = computeLeadTemperature({
         score: lead.score,
         status: lead.status,
@@ -107,7 +150,6 @@ export async function engageLead(lead: Lead): Promise<EngagementResult> {
       }
     }
 
-    // Record this engagement as an agent result for history
     await upsertResult({
       id: crypto.randomUUID(),
       agentType: "sales",
@@ -135,9 +177,6 @@ export async function engageLead(lead: Lead): Promise<EngagementResult> {
   return result;
 }
 
-/**
- * Engage multiple leads in batch (used after pipeline scrape).
- */
 export async function engageLeads(leads: Lead[]): Promise<EngagementResult[]> {
   const results: EngagementResult[] = [];
   for (const lead of leads) {
@@ -148,56 +187,57 @@ export async function engageLeads(leads: Lead[]): Promise<EngagementResult[]> {
 }
 
 // ========================================================================
-// INTERNAL: Send first email
+// HEALY FIRST EMAIL — Professional, warm, value-first, phone number request
 // ========================================================================
 
 async function sendFirstEmail(
   lead: Lead,
   engine: NurtureEngine
-): Promise<{ success: boolean; error?: string; cost: number }> {
-  // Get the first email template from the nurture sequence
+): Promise<SendResult> {
   const sequences = await engine.getSequencesByLead(lead.id);
   if (sequences.length === 0) {
-    return { success: false, error: "No nurture sequence found", cost: 0 };
+    return { success: false, error: "No nurture sequence found", cost: 0, stepIndex: -1 };
   }
 
   const seq = sequences[0]!;
-  const firstStep = seq.steps[0];
-  if (!firstStep || firstStep.type !== "email") {
-    return { success: false, error: "First step is not email", cost: 0 };
+  const emailStepIndex = seq.steps.findIndex((s) => s.type === "email");
+  if (emailStepIndex < 0) {
+    return { success: false, error: "No email step in sequence", cost: 0, stepIndex: -1 };
   }
 
-  const profile = await getBusinessProfileForEngagement();
-  const bookingLink = await getBookingLink();
+  const emailStep = seq.steps[emailStepIndex];
+  let template = emailStep.template;
 
-  // Optionally personalize with LLM (free tier = Flash-Lite)
-  let template = firstStep.template;
-  let cost = 0;
+  // If no template yet, use the first Healy welcome template (enriched with scraped data)
+  if (!template || template.includes("Follow up with")) {
+    const rawTemplate = `Hi ${lead.name},
 
-  if (lead.notes && lead.notes.length > 10) {
-    try {
-      const personalized = await callLLM(
-        `Personalize this outreach message for ${lead.name}. Keep the same message structure but add relevant details. Output ONLY the personalized message.`,
-        `Original: "${firstStep.template}"\n\nLead: ${lead.name}\nCompany: ${lead.company}\nRole: ${lead.role}\nNotes: ${lead.notes}`,
-        {
-          model: getDefaultModel("flash-lite"),
-          temperature: 0.5,
-          maxTokens: 300,
-          provider: getDefaultProvider() as any,
-        }
-      );
-      if (personalized) template = personalized;
-      cost = 0.00002;
-    } catch {
-      // Use default template ($0)
-    }
+I came across {company} and was impressed by what you're building. I'm reaching out because I believe genuine wellness shouldn't be complicated. My name is ${HEALY_SENDER_NAME}, and I work with Healy — a German-engineered wellness technology that supports your body's natural balance through personalized microcurrent frequencies.
+
+I'm not here to sell you anything. I'm here to offer something rare: a free, no-obligation conversation about what's possible when we approach wellness differently.
+
+Many people I speak with are tired of quick fixes that don't last. They're looking for something that works with their body — not against it. That's where Healy comes in.
+
+To learn more about the technology behind Healy, visit https://www.healyworld.net — their official site has a wealth of information.
+
+If you'd like to explore whether this could be right for you, simply reply to this email with your phone number and a convenient time, and I'll personally reach out for a warm, no-pressure conversation.
+
+In the meantime, I invite you to visit https://www.healycommunity.com to book your free consultation.
+
+With warmth,
+${HEALY_SENDER_NAME}
+Wellness Advisor, Healy
+${HEALY_SENDER_PHONE}
+${HEALY_WHATSAPP_LINK}
+https://www.healycommunity.com`;
+    template = injectLeadData(rawTemplate, lead);
   }
 
   const email = buildNurtureEmail({
     leadName: lead.name,
-    step: { subject: firstStep.subject, template },
-    businessName: profile.businessName,
-    bookingLink,
+    step: { subject: emailStep.subject || "Welcome — exploring a new approach to wellness", template },
+    businessName: HEALY_BUSINESS_NAME,
+    bookingLink: HEALY_CTA_LINK,
   });
 
   try {
@@ -208,110 +248,52 @@ async function sendFirstEmail(
       textBody: email.text,
     });
 
-    // Advance the sequence to mark first step as sent
-    if (result.success) {
-      await engine.advanceSequence(seq.id);
-    }
-
-    return { success: result.success, error: result.error, cost };
+    return { success: result.success, error: result.error, cost: 0, stepIndex: result.success ? emailStepIndex : -1 };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Email send failed",
-      cost,
+      cost: 0,
+      stepIndex: -1,
     };
   }
 }
 
 // ========================================================================
-// INTERNAL: Send first WhatsApp message
+// HEALY FIRST WHATSAPP — Conversational, phone-friendly
 // ========================================================================
 
 async function sendFirstWhatsApp(
   lead: Lead,
   engine: NurtureEngine
-): Promise<{ success: boolean; error?: string; cost: number }> {
+): Promise<SendResult> {
   const connected = await isWhatsAppConnected();
-  if (!connected) {
-    return { success: false, error: "WhatsApp not connected. Scan QR code in Settings.", cost: 0 };
+  if (!connected || !lead.phone) {
+    return { success: false, error: "whatsapp_unavailable", cost: 0, stepIndex: -1 };
   }
 
-  // Get the first WhatsApp template from the nurture sequence
   const sequences = await engine.getSequencesByLead(lead.id);
   if (sequences.length === 0) {
-    return { success: false, error: "No nurture sequence found", cost: 0 };
+    return { success: false, error: "No nurture sequence found", cost: 0, stepIndex: -1 };
   }
 
   const seq = sequences[0]!;
-  const waStep = seq.steps.find((s) => s.type === "whatsapp");
-  if (!waStep) {
-    return { success: false, error: "No WhatsApp step in sequence", cost: 0 };
+  const waStepIndex = seq.steps.findIndex((s) => s.type === "whatsapp");
+  if (waStepIndex < 0) {
+    return { success: false, error: "No WhatsApp step in sequence", cost: 0, stepIndex: -1 };
   }
 
-  let message = waStep.template;
-  let cost = 0;
-
-  if (lead.notes && lead.notes.length > 10) {
-    try {
-      const personalized = await callLLM(
-        `Personalize this WhatsApp message for ${lead.name}. Keep it under 500 chars. Output ONLY the message.`,
-        `Message: "${waStep.template}"\n\nLead: ${lead.name}\nCompany: ${lead.company}`,
-        {
-          model: getDefaultModel("flash-lite"),
-          temperature: 0.5,
-          maxTokens: 200,
-          provider: getDefaultProvider() as any,
-        }
-      );
-      if (personalized) message = personalized;
-      cost = 0.00002;
-    } catch {}
-  }
-
-  // Add booking link
-  const bookingLink = await getBookingLink();
-  if (!message.includes("book") && message.length < 400) {
-    message += `\n\nBook a free consultation: ${bookingLink}`;
-  }
+  const message = `Hi ${lead.name},\n\nI'm ${HEALY_SENDER_NAME} with Healy — a German frequency wellness technology. I came across your profile and thought you might be interested in exploring a natural approach to better sleep, energy, and stress management.\n\nI'd love to offer you a free, no-obligation consultation. You can book it here: ${HEALY_CTA_LINK}\n\nOr, if you prefer, just reply with your phone number and I'll call you personally.\n\nLooking forward to connecting!\n\n${HEALY_SENDER_NAME}\n${HEALY_SENDER_PHONE}`;
 
   try {
     const result = await sendWhatsAppMessage(lead.phone || "", message);
-    return { success: result.success, error: result.error, cost };
+    return { success: result.success, error: result.error, cost: 0, stepIndex: result.success ? waStepIndex : -1 };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "WhatsApp send failed",
-      cost,
+      cost: 0,
+      stepIndex: -1,
     };
   }
-}
-
-// ========================================================================
-// HELPER: Get business profile for engagement
-// ========================================================================
-
-async function getBusinessProfileForEngagement(): Promise<BusinessProfile> {
-  try {
-    const name = await getSetting("pipeline_business_name");
-    if (name) {
-      return {
-        businessName: name,
-        industry: (await getSetting("pipeline_business_industry")) || getDefaultBusinessProfile().industry,
-        targetAudience: (await getSetting("pipeline_business_audience")) || getDefaultBusinessProfile().targetAudience,
-        productDescription: (await getSetting("pipeline_business_product_desc")) || getDefaultBusinessProfile().productDescription,
-        keySellingPoints: (await getSetting("pipeline_business_selling_points")) || getDefaultBusinessProfile().keySellingPoints,
-        brandVoice: (await getSetting("pipeline_business_voice")) || getDefaultBusinessProfile().brandVoice,
-      };
-    }
-  } catch {}
-  return getDefaultBusinessProfile();
-}
-
-// ========================================================================
-// HELPER: Get booking link from settings or default
-// ========================================================================
-
-async function getBookingLink(): Promise<string> {
-  const link = await getSetting("followup_booking_link");
-  return link || "/book";
 }

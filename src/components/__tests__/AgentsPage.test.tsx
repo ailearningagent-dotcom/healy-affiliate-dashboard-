@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 // Mock lucide-react icons
 vi.mock("lucide-react", () => {
   const icons: Record<string, unknown> = {};
-  const names = ["FileText", "Search", "Sparkles", "Loader2", "CheckCircle2", "AlertCircle", "ChevronRight", "ArrowRight", "Mail", "TrendingUp", "Crown", "DollarSign", "BarChart3", "Palette", "Code2", "Globe"];
+  const names = ["FileText", "Search", "Sparkles", "Loader2", "CheckCircle2", "AlertCircle", "ChevronRight", "ArrowRight", "Mail", "TrendingUp", "Globe"];
   names.forEach((n) => {
     icons[n] = ({ className }: { className?: string }) =>
       <span data-testid={`icon-${n}`} className={className} />;
@@ -44,17 +44,12 @@ describe("AgentsPage", () => {
     expect(screen.getByText(/Run AI-powered agents/i)).toBeInTheDocument();
   });
 
-  it("renders agent selection buttons for all 10 agents", () => {
+  it("renders agent selection buttons for all 5 agents", () => {
     render(<AgentsPage />);
     const creatorElements = screen.getAllByText("AI Content Creator");
     expect(creatorElements.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Prospect Researcher")).toBeInTheDocument();
     expect(screen.getByText("AI Outreach Specialist")).toBeInTheDocument();
-    expect(screen.getByText("AI CEO")).toBeInTheDocument();
-    expect(screen.getByText("AI CFO")).toBeInTheDocument();
-    expect(screen.getByText("AI Data Analyst")).toBeInTheDocument();
-    expect(screen.getByText("AI Design Team")).toBeInTheDocument();
-    expect(screen.getByText("AI Developer")).toBeInTheDocument();
     expect(screen.getByText("AI Sales Team")).toBeInTheDocument();
     expect(screen.getByText("Lead Scraper")).toBeInTheDocument();
   });
@@ -178,8 +173,7 @@ describe("AgentsPage", () => {
     render(<AgentsPage />);
     const agentNames = [
       "AI Content Creator", "Prospect Researcher", "AI Outreach Specialist",
-      "AI CEO", "AI CFO", "AI Data Analyst", "AI Design Team",
-      "AI Developer", "AI Sales Team", "Lead Scraper",
+      "AI Sales Team", "Lead Scraper",
     ];
     agentNames.forEach((name) => {
       const elements = screen.getAllByText(name);

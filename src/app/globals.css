@@ -74,11 +74,15 @@
 }
 
 @layer base {
-  * {
-    @apply border-surface-200;
+  *, *::before, *::after {
+    border-color: var(--color-surface-200);
   }
   body {
-    @apply bg-surface-50 text-surface-900 antialiased transition-colors duration-300;
+    background-color: var(--color-surface-50);
+    color: var(--color-surface-900);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s, color 0.3s;
   }
   :root {
     color-scheme: light;

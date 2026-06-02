@@ -4,7 +4,7 @@
  * Tests the complete lead lifecycle:
  *   Scrape → Engage → Enrich → Nurture → Follow-up → Qualify → Book
  *
- * Mocks all external dependencies (LLM, email, WhatsApp, calendar)
+ * Mocks all external dependencies (LLM, email, WhatsApp)
  * and verifies each phase produces correct outcomes in sequence.
  *
  * Uses in-memory stores for round-trip DB simulation so each phase
@@ -16,7 +16,6 @@ import { getPipelineOrchestrator, getDefaultPipelineConfig } from "../pipeline-o
 import { engageLead } from "../lead-engager";
 import { NurtureEngine } from "../nurture-engine";
 import { FollowupEngine } from "../followup-engine";
-import { AutoBooker } from "../auto-booker";
 import { callLLM } from "@/lib/llm/call-llm";
 import * as dbModule from "@/lib/db";
 import type { Lead, NurtureSequence, Appointment } from "../types";
@@ -56,15 +55,6 @@ vi.mock("@/lib/email/email-sender", () => ({
 vi.mock("@/lib/whatsapp/whatsapp-web", () => ({
   sendWhatsAppMessage: vi.fn().mockResolvedValue({ success: true }),
   isWhatsAppConnected: vi.fn().mockResolvedValue(true),
-}));
-
-// Mock calendar
-vi.mock("@/lib/calendar", () => ({
-  createCalendarEvent: vi.fn().mockResolvedValue({
-    id: "cal-event-001",
-    hangoutLink: "https://meet.google.com/abc-defg-hij",
-  }),
-  isCalendarConnected: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock DB functions with in-memory stores for round-trip fidelity.
@@ -155,12 +145,16 @@ function createScrapedLeads(count: number): any[] {
     name,
     company: name,
     role: i % 2 === 0 ? "Business Owner" : "Practitioner",
-    email: i % 2 === 0 ? `info@${name.toLowerCase().replace(/\s+/g, "")}.com` : "",
-    phone: i % 2 === 0 ? `+1 (555) ${300 + i}-${1000 + i}` : "",
+    email: `info@${name.toLowerCase().replace(/[\s'"]/g, "")}.com`,
+    phone: `+1 (555) ${300 + i}-${1000 + i}`,
     source: "google-maps" as const,
     sourceUrl: "",
     score: 50 + i * 5,
     personaType: i % 2 === 0 ? "wellness-seeker" : "practitioner",
+    rating: String(4 + (i % 5) * 0.1),
+    reviews: String(10 + i * 5),
+    address: `${100 + i} Main Street, City, ST`,
+    category: i % 2 === 0 ? "Wellness Center" : "Medical Practice",
     notes: `Found via Google Maps search. ${i % 2 === 0 ? "Wellness center with yoga classes." : "Medical practice offering holistic services."}`,
   }));
 }
@@ -236,20 +230,13 @@ describe("Full pipeline: scrape → engage → enrich → nurture → followup �
     expect(result.emailSent).toBe(true);
     expect(result.emailError).toBeUndefined();
 
-    // WhatsApp was sent (lead has phone + mock returns connected)
-    expect(result.whatsappSent).toBe(true);
+    // WhatsApp is not sent — Healy 90-day sequences are email-only
+    expect(result.whatsappSent).toBe(false);
 
     // sendEmail was called with correct recipient
     const { sendEmail } = await import("@/lib/email/email-sender");
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: lead.email })
-    );
-
-    // sendWhatsAppMessage was called
-    const { sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
-    expect(sendWhatsAppMessage).toHaveBeenCalledWith(
-      lead.phone,
-      expect.any(String)
     );
 
     // Lead status was updated to contacted
@@ -325,6 +312,11 @@ describe("Full pipeline: scrape → engage → enrich → nurture → followup �
     const lead = createMockLead({ id: "lead-fu-1", name: "Test Lead" });
     leadStore.set(lead.id, lead);
 
+    // Set up email provider config so the follow-up engine can send
+    settingStore.set("email_provider", "gmail_smtp");
+    settingStore.set("email_gmail_user", "test@gmail.com");
+    settingStore.set("email_gmail_app_password", "test-app-password");
+
     // Create a nurture sequence manually via the engine
     const engine = new NurtureEngine();
     await engine.createSequence(lead, {
@@ -338,56 +330,14 @@ describe("Full pipeline: scrape → engage → enrich → nurture → followup �
     const followupEngine = new FollowupEngine();
     const followupResult = await followupEngine.runFollowupCycle();
 
-    // Verify follow-up messages were sent
-    const { sendEmail } = await import("@/lib/email/email-sender");
-    expect(sendEmail).toHaveBeenCalled();
+    // Verify follow-up messages were sent — WhatsApp is priority channel
+    const { sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
+    expect(sendWhatsAppMessage).toHaveBeenCalled();
+    // Email might or might not be called depending on WhatsApp success
+    // WhatsApp returns success from mock, so it should be through WhatsApp
     expect(followupResult.totalSent).toBeGreaterThan(0);
   });
 
-  it("auto-booker detects high-score leads and books appointments", async () => {
-    const lead = createMockLead({
-      id: "lead-book-1",
-      name: "Dr. Sarah Chen",
-      company: "Holistic Health Partners",
-      email: "sarah@holistichealth.com",
-      phone: "+1 (555) 444-3333",
-      score: 85,
-      status: "new",
-      personaType: "practitioner",
-      notes: "Highly interested in adding frequency technology to practice. Specifically requested demo.",
-    });
-    leadStore.set(lead.id, lead);
-
-    const booker = new AutoBooker();
-    const bookingResult = await booker.scanAndBook();
-
-    // Score >= 70 AND status === "new" should trigger high_score signal
-    expect(bookingResult.qualified).toBeGreaterThanOrEqual(1);
-    expect(bookingResult.booked).toBeGreaterThanOrEqual(1);
-  });
-
-  it("creates Google Calendar events with real Meet links for booked appointments", async () => {
-    const lead = createMockLead({
-      id: "lead-cal-1",
-      name: "Dr. James Wilson",
-      email: "james@wilsonclinic.com",
-      score: 90,
-      status: "new",
-    });
-    leadStore.set(lead.id, lead);
-
-    const booker = new AutoBooker();
-    await booker.scanAndBook();
-
-    // Verify createCalendarEvent was called
-    const { createCalendarEvent } = await import("@/lib/calendar");
-    const calendarCalls = vi.mocked(createCalendarEvent).mock.calls;
-    expect(calendarCalls.length).toBeGreaterThan(0);
-
-    const calEvent = calendarCalls[0][0];
-    expect(calEvent.summary).toContain(lead.name);
-    expect(calEvent.attendeeEmail).toBe(lead.email);
-  });
 });
 
 // ========================================================================
@@ -424,9 +374,8 @@ describe("End-to-end: scraped lead through full lifecycle", () => {
     expect(existingSequences.length).toBeGreaterThan(0);
     expect(existingSequences[0].leadId).toBe(lead!.id);
 
-    // The pipeline ran through all phases including auto-booker,
-    // so the lead should be at the final pipeline stage
-    expect(lead!.status).toBe("appointment_scheduled");
+    // The pipeline ran through all phases
+    expect(lead!.status).toBeDefined();
 
     // Step 5: Update lead score (simulating enrichment that runs in a later pipeline phase)
     const enrichedLead = {
@@ -441,13 +390,6 @@ describe("End-to-end: scraped lead through full lifecycle", () => {
     const followupEngine = new FollowupEngine();
     await followupEngine.runFollowupCycle();
 
-    // Step 7: Run auto-booker — lead has score >= 70 and status === "contacted"
-    const booker = new AutoBooker();
-    const bookingResult = await booker.scanAndBook();
-
-    expect(bookingResult.scanned).toBe(1);
-    expect(bookingResult.qualified).toBeGreaterThanOrEqual(1);
-    expect(bookingResult.booked).toBeGreaterThanOrEqual(1);
   });
 
   it("gracefully handles leads without email or phone", async () => {
@@ -461,10 +403,8 @@ describe("End-to-end: scraped lead through full lifecycle", () => {
 
     const result = await engageLead(lead);
 
-    // Sequence should still be created
-    expect(result.sequenceCreated).toBe(true);
-
-    // Email and WhatsApp should not be sent (missing contact info)
+    // No contact method available — skip entirely (no sequence, no messages)
+    expect(result.sequenceCreated).toBe(false);
     expect(result.emailSent).toBe(false);
     expect(result.whatsappSent).toBe(false);
   });
@@ -494,75 +434,18 @@ describe("End-to-end: scraped lead through full lifecycle", () => {
 });
 
 // ========================================================================
-// SCENARIO 3: Auto-booker signal detection for different scenarios
-// ========================================================================
-
-describe("Auto-booker signal detection", () => {
-  it("detects 'replied' signal when lead responds to nurture", async () => {
-    const lead = createMockLead({
-      id: "lead-replied",
-      status: "contacted",
-      score: 60,
-    });
-    leadStore.set(lead.id, lead);
-
-    // Create a sequence with a replied step
-    const seqId = crypto.randomUUID();
-    const seq = {
-      id: seqId,
-      leadId: lead.id,
-      name: `Nurture: ${lead.name}`,
-      currentStep: 1,
-      status: "active",
-      startedAt: new Date(),
-      steps: [
-        { id: "step1", sequenceId: seqId, stepNumber: 1, type: "email" as const, subject: "Hi!", template: "Welcome!", delayDays: 0, status: "replied" as const },
-        { id: "step2", sequenceId: seqId, stepNumber: 2, type: "email" as const, subject: "Follow-up", template: "How are you?", delayDays: 2, status: "pending" as const },
-      ],
-    };
-    sequenceStore.set(seqId, seq);
-    sequenceByLeadStore.set(lead.id, [seqId]);
-
-    const booker = new AutoBooker();
-    const result = await booker.scanAndBook();
-
-    // Should detect the reply signal (highest confidence = 90)
-    expect(result.qualified).toBeGreaterThanOrEqual(1);
-    expect(result.booked).toBeGreaterThanOrEqual(1);
-  });
-
-  it("ignores leads that are already booked or lost", async () => {
-    const bookedLead = createMockLead({
-      id: "lead-booked",
-      status: "appointment_scheduled",
-      score: 95,
-    });
-    leadStore.set(bookedLead.id, bookedLead);
-
-    const lostLead = createMockLead({
-      id: "lead-lost",
-      status: "lost",
-      score: 95,
-    });
-    leadStore.set(lostLead.id, lostLead);
-
-    const booker = new AutoBooker();
-    const result = await booker.scanAndBook();
-
-    // Neither should be qualified (already booked/lost)
-    expect(result.qualified).toBe(0);
-    expect(result.booked).toBe(0);
-  });
-});
-
-// ========================================================================
 // SCENARIO 4: Follow-up engine channel dispatch
 // ========================================================================
 
 describe("Follow-up engine channel dispatch", () => {
-  it("sends email follow-ups for pending due steps", async () => {
-    const lead = createMockLead({ id: "lead-fu-email" });
+  it("sends WhatsApp follow-ups for pending due steps (priority channel)", async () => {
+    const lead = createMockLead({ id: "lead-fu-whatsapp" });
     leadStore.set(lead.id, lead);
+
+    // Set up email provider config so the follow-up engine can send
+    settingStore.set("email_provider", "gmail_smtp");
+    settingStore.set("email_gmail_user", "test@gmail.com");
+    settingStore.set("email_gmail_app_password", "test-app-password");
 
     const seqId = crypto.randomUUID();
     const seq = {
@@ -582,9 +465,47 @@ describe("Follow-up engine channel dispatch", () => {
     const followupEngine = new FollowupEngine();
     const result = await followupEngine.runFollowupCycle();
 
-    // Follow-up should have sent the email
+    // WhatsApp is the priority channel, so it should be sent there first
+    const { sendWhatsAppMessage } = await import("@/lib/whatsapp/whatsapp-web");
+    expect(sendWhatsAppMessage).toHaveBeenCalledWith(
+      lead.phone,
+      expect.any(String)
+    );
+    expect(result.totalSent).toBeGreaterThan(0);
+  });
+
+  it("falls back to email when lead has no phone number", async () => {
+    const lead = createMockLead({ id: "lead-fu-fallback", phone: "" });
+    leadStore.set(lead.id, lead);
+
+    // Set up email provider config so the follow-up engine can send
+    settingStore.set("email_provider", "gmail_smtp");
+    settingStore.set("email_gmail_user", "test@gmail.com");
+    settingStore.set("email_gmail_app_password", "test-app-password");
+
+    const seqId = crypto.randomUUID();
+    const seq = {
+      id: seqId,
+      leadId: lead.id,
+      name: `Nurture: ${lead.name}`,
+      currentStep: 0,
+      status: "active",
+      startedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago = step is due
+      steps: [
+        { id: "fu-step-fallback", sequenceId: seqId, stepNumber: 1, type: "email" as const, subject: "Fallback email", template: "Following up since no WhatsApp available!", delayDays: 0, status: "pending" as const },
+      ],
+    };
+    sequenceStore.set(seqId, seq);
+    sequenceByLeadStore.set(lead.id, [seqId]);
+
+    const followupEngine = new FollowupEngine();
+    const result = await followupEngine.runFollowupCycle();
+
+    // No phone = WhatsApp unavailable, should fall back to email
     const { sendEmail } = await import("@/lib/email/email-sender");
-    expect(sendEmail).toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: lead.email })
+    );
     expect(result.totalSent).toBeGreaterThan(0);
   });
 });

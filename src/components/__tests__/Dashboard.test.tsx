@@ -123,27 +123,26 @@ describe("Dashboard", () => {
     expect(screen.getByText("18.5%")).toBeInTheDocument(); // Conversion Rate
   });
 
-  it("renders org team section when teamMetrics provided", async () => {
-    const dataWithTeam = {
+  it("renders temperature breakdown section", async () => {
+    const dataWithTemps = {
       metrics: {
         ...mockDashboardData.metrics,
-        teamMetrics: {
-          departments: [
-            { name: "Executive Office", status: "operational", taskCount: 12, performance: 94 },
-            { name: "Finance Department", status: "operational", taskCount: 8, performance: 87 },
-          ],
-        },
+        coldLeads: 15,
+        warmLeads: 8,
+        hotLeads: 3,
+        totalLeads: 26,
       },
     };
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => dataWithTeam,
+      json: async () => dataWithTemps,
     } as Response);
 
     render(<Dashboard />);
     await waitFor(() => {
-      expect(screen.getByText(/Executive Office/i)).toBeInTheDocument();
+      expect(screen.getByText(/Cold Leads/i)).toBeInTheDocument();
     });
+    expect(screen.getByText(/Hot Leads/i)).toBeInTheDocument();
   });
 
   it("handles fetch error gracefully without crashing", async () => {

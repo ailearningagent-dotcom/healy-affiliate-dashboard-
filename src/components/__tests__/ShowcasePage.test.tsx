@@ -24,11 +24,6 @@ vi.mock("@/lib/theme-context", () => ({
   useTheme: () => ({ theme: "light", toggleTheme: vi.fn(), setTheme: vi.fn() }),
 }));
 
-// Mock InteractiveAgentDemo
-vi.mock("@/components/InteractiveAgentDemo", () => ({
-  default: () => <div data-testid="mock-agent-demo">Interactive Agent Demo</div>,
-}));
-
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
@@ -125,9 +120,9 @@ describe("ShowcasePage", () => {
     expect(screen.getByText("Leads & Appointments")).toBeInTheDocument();
   });
 
-  it("renders Booking Page feature section", () => {
+  it("renders Agents feature section", () => {
     render(<ShowcasePage />);
-    expect(screen.getByText("Booking Page")).toBeInTheDocument();
+    expect(screen.getByText("10 AI Agent Types")).toBeInTheDocument();
   });
 
   it("renders Multi-Tenant Admin feature section", () => {
@@ -194,11 +189,6 @@ describe("ShowcasePage", () => {
     expect(outreachElements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders agent demo component", () => {
-    render(<ShowcasePage />);
-    expect(screen.getByTestId("mock-agent-demo")).toBeInTheDocument();
-  });
-
   it("renders content preview with demo items", () => {
     render(<ShowcasePage />);
     const wellnessElements = screen.getAllByText(/The Future of Frequency Wellness/i);
@@ -213,12 +203,6 @@ describe("ShowcasePage", () => {
     expect(sarahElements.length).toBeGreaterThanOrEqual(1);
     const jamesElements = screen.getAllByText(/James Mitchell/i);
     expect(jamesElements.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders booking preview", () => {
-    render(<ShowcasePage />);
-    expect(screen.getByText(/Let's find a time/i)).toBeInTheDocument();
-    expect(screen.getByText(/Select a Date & Time/i)).toBeInTheDocument();
   });
 
   it("renders admin preview", () => {

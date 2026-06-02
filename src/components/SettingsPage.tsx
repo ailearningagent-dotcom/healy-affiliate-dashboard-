@@ -15,20 +15,21 @@ import {
   Zap,
   Cpu,
   ChevronDown,
-  Calendar,
-  Link,
-  ExternalLink,
-  Clock,
-  Unlink,
   Mail,
   MessageCircle,
   Smartphone,
   Send,
+  Unlink,
   Loader2,
   Atom,
   Brain,
   Wind,
   Network,
+  Earth,
+  MapPin,
+  ToggleLeft,
+  ToggleRight,
+  Search,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -197,18 +198,90 @@ const PROVIDERS: ProviderDef[] = [
   },
 ];
 
+// ============ COUNTRY DATA FOR UI ============
+
+interface CountryUI {
+  code: string;
+  name: string;
+  region: string;
+  channelPreference: "whatsapp" | "email" | "hybrid";
+  whatsappPenetration: "high" | "medium" | "low";
+  phoneCountryCode: string;
+  language: string;
+  flag: string;
+}
+
+const ALL_COUNTRIES_UI: CountryUI[] = [
+  // APAC
+  { code: "IN", name: "India", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+91", language: "hi", flag: "🇮🇳" },
+  { code: "PH", name: "Philippines", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+63", language: "tl", flag: "🇵🇭" },
+  { code: "ID", name: "Indonesia", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+62", language: "id", flag: "🇮🇩" },
+  { code: "MY", name: "Malaysia", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+60", language: "ms", flag: "🇲🇾" },
+  { code: "TH", name: "Thailand", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+66", language: "th", flag: "🇹🇭" },
+  { code: "VN", name: "Vietnam", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+84", language: "vi", flag: "🇻🇳" },
+  { code: "KH", name: "Cambodia", region: "apac", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+855", language: "km", flag: "🇰🇭" },
+  { code: "HK", name: "Hong Kong", region: "apac", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+852", language: "zh", flag: "🇭🇰" },
+  { code: "SG", name: "Singapore", region: "apac", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+65", language: "en", flag: "🇸🇬" },
+  { code: "TW", name: "Taiwan", region: "apac", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+886", language: "zh", flag: "🇹🇼" },
+  { code: "AU", name: "Australia", region: "apac", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+61", language: "en", flag: "🇦🇺" },
+  { code: "NZ", name: "New Zealand", region: "apac", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+64", language: "en", flag: "🇳🇿" },
+  { code: "JP", name: "Japan", region: "apac", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+81", language: "ja", flag: "🇯🇵" },
+  { code: "KR", name: "South Korea", region: "apac", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+82", language: "ko", flag: "🇰🇷" },
+  // Americas
+  { code: "US", name: "United States", region: "americas", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+1", language: "en", flag: "🇺🇸" },
+  { code: "CA", name: "Canada", region: "americas", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+1", language: "en", flag: "🇨🇦" },
+  { code: "MX", name: "Mexico", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+52", language: "es", flag: "🇲🇽" },
+  { code: "CO", name: "Colombia", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+57", language: "es", flag: "🇨🇴" },
+  { code: "CL", name: "Chile", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+56", language: "es", flag: "🇨🇱" },
+  { code: "PE", name: "Peru", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+51", language: "es", flag: "🇵🇪" },
+  { code: "EC", name: "Ecuador", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+593", language: "es", flag: "🇪🇨" },
+  { code: "CR", name: "Costa Rica", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+506", language: "es", flag: "🇨🇷" },
+  { code: "PA", name: "Panama", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+507", language: "es", flag: "🇵🇦" },
+  { code: "GT", name: "Guatemala", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+502", language: "es", flag: "🇬🇹" },
+  { code: "DO", name: "Dominican Republic", region: "americas", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+1", language: "es", flag: "🇩🇴" },
+  // Europe
+  { code: "GB", name: "United Kingdom", region: "europe", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+44", language: "en", flag: "🇬🇧" },
+  { code: "DE", name: "Germany", region: "europe", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+49", language: "de", flag: "🇩🇪" },
+  { code: "FR", name: "France", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+33", language: "fr", flag: "🇫🇷" },
+  { code: "IT", name: "Italy", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+39", language: "it", flag: "🇮🇹" },
+  { code: "ES", name: "Spain", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+34", language: "es", flag: "🇪🇸" },
+  { code: "NL", name: "Netherlands", region: "europe", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+31", language: "nl", flag: "🇳🇱" },
+  { code: "CH", name: "Switzerland", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+41", language: "de", flag: "🇨🇭" },
+  { code: "SE", name: "Sweden", region: "europe", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+46", language: "sv", flag: "🇸🇪" },
+  { code: "NO", name: "Norway", region: "europe", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+47", language: "no", flag: "🇳🇴" },
+  { code: "DK", name: "Denmark", region: "europe", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+45", language: "da", flag: "🇩🇰" },
+  { code: "FI", name: "Finland", region: "europe", channelPreference: "email", whatsappPenetration: "low", phoneCountryCode: "+358", language: "fi", flag: "🇫🇮" },
+  { code: "PL", name: "Poland", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+48", language: "pl", flag: "🇵🇱" },
+  { code: "PT", name: "Portugal", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+351", language: "pt", flag: "🇵🇹" },
+  { code: "BE", name: "Belgium", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+32", language: "nl", flag: "🇧🇪" },
+  { code: "AT", name: "Austria", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+43", language: "de", flag: "🇦🇹" },
+  { code: "IE", name: "Ireland", region: "europe", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+353", language: "en", flag: "🇮🇪" },
+  { code: "GR", name: "Greece", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+30", language: "el", flag: "🇬🇷" },
+  { code: "HU", name: "Hungary", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+36", language: "hu", flag: "🇭🇺" },
+  { code: "RO", name: "Romania", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+40", language: "ro", flag: "🇷🇴" },
+  { code: "BG", name: "Bulgaria", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+359", language: "bg", flag: "🇧🇬" },
+  { code: "HR", name: "Croatia", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+385", language: "hr", flag: "🇭🇷" },
+  { code: "CZ", name: "Czech Republic", region: "europe", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+420", language: "cs", flag: "🇨🇿" },
+  { code: "SK", name: "Slovakia", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+421", language: "sk", flag: "🇸🇰" },
+  { code: "SI", name: "Slovenia", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+386", language: "sl", flag: "🇸🇮" },
+  { code: "LT", name: "Lithuania", region: "europe", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+370", language: "lt", flag: "🇱🇹" },
+  { code: "LV", name: "Latvia", region: "europe", channelPreference: "hybrid", whatsappPenetration: "medium", phoneCountryCode: "+371", language: "lv", flag: "🇱🇻" },
+  { code: "EE", name: "Estonia", region: "europe", channelPreference: "email", whatsappPenetration: "medium", phoneCountryCode: "+372", language: "et", flag: "🇪🇪" },
+  { code: "LU", name: "Luxembourg", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+352", language: "lb", flag: "🇱🇺" },
+  { code: "MT", name: "Malta", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+356", language: "mt", flag: "🇲🇹" },
+  { code: "CY", name: "Cyprus", region: "europe", channelPreference: "hybrid", whatsappPenetration: "high", phoneCountryCode: "+357", language: "el", flag: "🇨🇾" },
+  { code: "UA", name: "Ukraine", region: "europe", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+380", language: "uk", flag: "🇺🇦" },
+  // Middle East
+  { code: "AE", name: "UAE", region: "middle-east", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+971", language: "ar", flag: "🇦🇪" },
+  { code: "TR", name: "Turkey", region: "middle-east", channelPreference: "whatsapp", whatsappPenetration: "high", phoneCountryCode: "+90", language: "tr", flag: "🇹🇷" },
+];
+
 const SETTINGS_SECTIONS = [
   {
     id: "api",
     label: "API Keys",
     icon: Key,
     description: "Manage your AI provider API keys & model preferences",
-  },
-  {
-    id: "calendar",
-    label: "Calendar",
-    icon: Calendar,
-    description: "Connect Google Calendar & manage booking settings",
   },
   {
     id: "preferences",
@@ -229,6 +302,12 @@ const SETTINGS_SECTIONS = [
     description: "Connect business WhatsApp for automated outreach",
   },
   {
+    id: "countries",
+    label: "Countries",
+    icon: Earth,
+    description: "Configure global lead targeting across 60+ Healy markets",
+  },
+  {
     id: "notifications",
     label: "Notifications",
     icon: Bell,
@@ -241,6 +320,44 @@ const SETTINGS_SECTIONS = [
     description: "Manage your account security settings",
   },
 ];
+
+// ============ BADGE COMPONENTS ============
+
+function ChannelBadge({ preference }: { preference: string }) {
+  const colors: Record<string, string> = {
+    whatsapp: "bg-emerald-100 text-emerald-700",
+    email: "bg-blue-100 text-blue-700",
+    hybrid: "bg-amber-100 text-amber-700",
+  };
+  const labels: Record<string, string> = {
+    whatsapp: "WA",
+    email: "📧",
+    hybrid: "📧💬",
+  };
+  return (
+    <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded", colors[preference] || "bg-surface-100 text-surface-500")}>
+      {labels[preference] || preference}
+    </span>
+  );
+}
+
+function WAPenetrationBadge({ level }: { level: string }) {
+  const colors: Record<string, string> = {
+    high: "text-emerald-600",
+    medium: "text-amber-600",
+    low: "text-surface-400",
+  };
+  const dots: Record<string, string> = {
+    high: "●●●",
+    medium: "●●○",
+    low: "●○○",
+  };
+  return (
+    <span className={clsx("text-[10px]", colors[level] || "text-surface-400")}>
+      {dots[level] || "○○○"}
+    </span>
+  );
+}
 
 export function BusinessProfileForm({ profile, onChange, onSave, saved }: {
   profile: Record<string, string>;
@@ -327,14 +444,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [savedProvider, setSavedProvider] = useState("");
 
-  // Calendar connection state
-  const [calendarConnected, setCalendarConnected] = useState(false);
-  const [calendarEmail, setCalendarEmail] = useState("");
-  const [calendarLoading, setCalendarLoading] = useState(true);
-  const [calendarStatus, setCalendarStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
-  const [calendarError, setCalendarError] = useState("");
-  
-  // Availability settings
+  // Availability settings (for future use)
   const [availabilityStart, setAvailabilityStart] = useState("09:00");
   const [availabilityEnd, setAvailabilityEnd] = useState("17:00");
   const [meetingDuration, setMeetingDuration] = useState(30);
@@ -351,6 +461,119 @@ export default function SettingsPage() {
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<string | null>(null);
   const [emailTesting, setEmailTesting] = useState(false);
+
+  // ==================== COUNTRY CONFIGURATION ====================
+  const [targetRegion, setTargetRegion] = useState("");
+  const [targetCountry, setTargetCountry] = useState("");
+  const [countrySearch, setCountrySearch] = useState("");
+  const [countryData, setCountryData] = useState<any[]>([]);
+  const [enabledCountries, setEnabledCountries] = useState<Set<string>>(new Set());
+  const [countriesSaved, setCountriesSaved] = useState(false);
+  const [countriesLoading, setCountriesLoading] = useState(true);
+
+  const COUNTRY_REGIONS = [
+    { value: "", label: "🌍 All Countries", description: "Target all 60+ Healy markets worldwide" },
+    { value: "apac", label: "🌏 Asia Pacific", description: "India, Philippines, Indonesia, Australia, Japan + more" },
+    { value: "americas", label: "🌎 Americas", description: "US, Canada, Mexico, Colombia, Brazil + more" },
+    { value: "europe", label: "🌍 Europe", description: "UK, Germany, France, Italy, Spain, Poland + more" },
+    { value: "middle-east", label: "🕌 Middle East", description: "UAE, Turkey" },
+  ];
+
+  // Load country data and settings on mount
+  useEffect(() => {
+    async function loadCountries() {
+      setCountriesLoading(true);
+      try {
+        const res = await fetch("/api/settings?key=pipeline_target_region");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.value) setTargetRegion(data.value);
+        }
+        const res2 = await fetch("/api/settings?key=pipeline_target_country");
+        if (res2.ok) {
+          const data = await res2.json();
+          if (data.value) setTargetCountry(data.value);
+        }
+        const res3 = await fetch("/api/settings?key=pipeline_enabled_countries");
+        if (res3.ok) {
+          const data = await res3.json();
+          if (data.value) {
+            try {
+              const parsed = JSON.parse(data.value);
+              if (Array.isArray(parsed)) setEnabledCountries(new Set(parsed));
+            } catch {}
+          }
+        }
+        // Country data is defined statically in the UI — no API call needed
+        setCountryData(ALL_COUNTRIES_UI);
+      } catch {
+        setCountryData(ALL_COUNTRIES_UI);
+      } finally {
+        setCountriesLoading(false);
+      }
+    }
+    loadCountries();
+  }, []);
+
+  const handleSaveCountries = async () => {
+    try {
+      await Promise.all([
+        fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "pipeline_target_region", value: targetRegion }),
+        }),
+        fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "pipeline_target_country", value: targetCountry }),
+        }),
+        fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "pipeline_enabled_countries", value: JSON.stringify(Array.from(enabledCountries)) }),
+        }),
+      ]);
+      setCountriesSaved(true);
+      setTimeout(() => setCountriesSaved(false), 2500);
+    } catch {
+      console.error("Failed to save country settings");
+    }
+  };
+
+  const toggleCountry = (code: string) => {
+    setEnabledCountries((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  const selectAllCountries = () => {
+    const filtered = getFilteredCountries();
+    setEnabledCountries(new Set(filtered.map((c) => c.code)));
+  };
+
+  const clearAllCountries = () => {
+    setEnabledCountries(new Set());
+  };
+
+  const getFilteredCountries = () => {
+    let filtered = [...ALL_COUNTRIES_UI];
+    if (targetRegion) {
+      filtered = filtered.filter((c) => c.region === targetRegion);
+    }
+    if (countrySearch) {
+      const q = countrySearch.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.code.toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  };
 
   // WhatsApp configuration
   const [whatsappStatus, setWhatsappStatus] = useState<string>("disconnected");
@@ -417,109 +640,13 @@ export default function SettingsPage() {
       } catch {}
     }
     // Load availability settings
-    const savedStart = localStorage.getItem("CALENDAR_AVAILABILITY_START");
-    const savedEnd = localStorage.getItem("CALENDAR_AVAILABILITY_END");
-    const savedDuration = localStorage.getItem("CALENDAR_MEETING_DURATION");
-    if (savedStart) setAvailabilityStart(savedStart);
-    if (savedEnd) setAvailabilityEnd(savedEnd);
-    if (savedDuration) setMeetingDuration(parseInt(savedDuration, 10));
-    
     // Load email config from DB
     loadEmailConfig();
     // Load WhatsApp status
     loadWhatsAppStatus();
-    // Check calendar connection status
-    checkCalendarStatus();
   }, []);
-
-  // Check URL params for calendar auth result
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const calStatus = params.get("calendar");
-    if (calStatus === "connected") {
-      setCalendarStatus("connected");
-      setCalendarConnected(true);
-      checkCalendarStatus();
-      // Clean URL
-      window.history.replaceState({}, "", "/settings");
-    } else if (calStatus === "error") {
-      const reason = params.get("reason") || "Unknown error";
-      setCalendarStatus("error");
-      setCalendarError(decodeURIComponent(reason));
-      window.history.replaceState({}, "", "/settings");
-    }
-  }, []);
-
-  const checkCalendarStatus = async () => {
-    setCalendarLoading(true);
-    try {
-      const res = await fetch("/api/calendar/status");
-      const data = await res.json();
-      setCalendarConnected(data.connected);
-      setCalendarEmail(data.email || "");
-      
-      // Show env configuration errors
-      if (!data.envConfigured && data.envError) {
-        setCalendarStatus("error");
-        setCalendarError(data.envError);
-      }
-    } catch {
-      setCalendarConnected(false);
-    } finally {
-      setCalendarLoading(false);
-    }
-  };
-
-  const handleConnectCalendar = () => {
-    setCalendarStatus("connecting");
-    window.location.href = "/api/calendar/auth";
-  };
-
-  const handleDisconnectCalendar = async () => {
-    try {
-      const res = await fetch("/api/calendar/disconnect", { method: "POST" });
-      const data = await res.json();
-      if (data.disconnected) {
-        setCalendarConnected(false);
-        setCalendarEmail("");
-        setCalendarStatus("idle");
-      }
-    } catch {
-      console.error("Failed to disconnect calendar");
-    }
-  };
 
   const handleSaveAvailability = async () => {
-    // Save to localStorage for frontend reference
-    localStorage.setItem("CALENDAR_AVAILABILITY_START", availabilityStart);
-    localStorage.setItem("CALENDAR_AVAILABILITY_END", availabilityEnd);
-    localStorage.setItem("CALENDAR_MEETING_DURATION", String(meetingDuration));
-    
-    // Save to server-side DB for the booking API to use
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "calendar_availability",
-          value: JSON.stringify({
-            startHour: parseInt(availabilityStart.split(":")[0], 10),
-            endHour: parseInt(availabilityEnd.split(":")[0], 10),
-          }),
-        }),
-      });
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "calendar_meeting_duration",
-          value: String(meetingDuration),
-        }),
-      });
-    } catch {
-      // Silently fail - the booking system will use defaults
-    }
-    
     setAvailSaved(true);
     setTimeout(() => setAvailSaved(false), 2500);
   };
@@ -996,256 +1123,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeSection === "calendar" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-base font-semibold text-surface-900 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary-600" />
-                    Google Calendar Integration
-                  </h3>
-                  <p className="text-sm text-surface-500 mt-1">
-                    Connect your Google Calendar to let leads book appointments automatically.
-                    Available slots are calculated from your calendar and working hours.
-                  </p>
-                </div>
-
-                {/* Connection Status */}
-                <div className={clsx(
-                  "rounded-lg border p-5 space-y-4",
-                  calendarConnected
-                    ? "bg-emerald-50/50 border-emerald-200"
-                    : "bg-surface-50 border-surface-200"
-                )}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={clsx(
-                        "flex h-10 w-10 items-center justify-center rounded-lg",
-                        calendarConnected
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-surface-200 text-surface-400"
-                      )}>
-                        <Calendar className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-surface-900">
-                          {calendarLoading
-                            ? "Checking connection..."
-                            : calendarConnected
-                            ? "Connected"
-                            : "Not Connected"}
-                        </h4>
-                        <p className="text-xs text-surface-500">
-                          {calendarConnected
-                            ? `Syncing to: ${calendarEmail || "Google Calendar"}`
-                            : "Connect to enable automatic scheduling"}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      {calendarConnected ? (
-                        <button
-                          onClick={handleDisconnectCalendar}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-all"
-                        >
-                          <Unlink className="h-3.5 w-3.5" />
-                          Disconnect
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleConnectCalendar}
-                          disabled={calendarStatus === "connecting"}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700 shadow-sm transition-all"
-                        >
-                          <Link className="h-3.5 w-3.5" />
-                          {calendarStatus === "connecting" ? "Connecting..." : "Connect"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {calendarStatus === "error" && calendarError && (
-                    <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-                      <p className="text-xs font-medium text-red-700">
-                        {calendarError.includes("GOOGLE_CLIENT_ID") || calendarError.includes("env")
-                          ? "⚠️ Environment Configuration Required"
-                          : "Failed to connect"}
-                      </p>
-                      <p className="text-xs text-red-500 mt-1">
-                        {calendarError}
-                      </p>
-                      {calendarError.includes("GOOGLE_CLIENT_ID") && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-xs font-medium text-primary-600 hover:text-primary-700">
-                            How to fix this
-                          </summary>
-                          <div className="mt-2 space-y-1 text-xs text-surface-600 pl-2">
-                            <p>1. Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">Google Cloud Console</a></p>
-                            <p>2. Create a project → Enable Google Calendar API</p>
-                            <p>3. Credentials → Create OAuth Client ID (Web application)</p>
-                            <p>4. Add redirect URI: <code className="bg-surface-100 px-1 rounded">{typeof window !== "undefined" ? `${window.location.origin}/api/calendar/callback` : "/api/calendar/callback"}</code></p>
-                            <p>5. Add to <code className="bg-surface-100 px-1 rounded">.env.local</code>:</p>
-                            <pre className="bg-surface-100 p-2 rounded text-xs font-mono mt-1">
-{`GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret`}
-                            </pre>
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Booking Page URL */}
-                <div className="rounded-lg border border-surface-200 bg-surface-50 p-4">
-                  <label htmlFor="booking-url" className="block text-sm font-medium text-surface-700 mb-2">
-                    📋 Your Public Booking Page URL
-                  </label>
-                  <div className="flex items-center gap-2">                      <input
-                        id="booking-url"
-                        type="text"
-                        readOnly
-                        value={typeof window !== "undefined" ? `${window.location.origin}/book` : "/book"}
-                        className="flex-1 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm font-mono text-surface-600"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                      />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${window.location.origin}/book`
-                        );
-                      }}
-                      className="rounded-lg border border-surface-200 px-3 py-2 text-xs font-medium text-surface-600 hover:bg-surface-100 transition-all"
-                    >
-                      Copy
-                    </button>
-                    <a
-                      href="/book"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700 shadow-sm transition-all inline-flex items-center gap-1"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Preview
-                    </a>
-                  </div>
-                  <p className="text-xs text-surface-400 mt-2">
-                    Share this link with potential clients so they can book discovery calls directly.
-                    No login required.
-                  </p>
-                </div>
-
-                {/* Availability Settings */}
-                <form onSubmit={(e) => e.preventDefault()} className="rounded-lg border border-surface-200 p-5 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-surface-900 flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-primary-500" />
-                      Availability Settings
-                    </h4>
-                    <p className="text-xs text-surface-500 mt-0.5">
-                      Set your working hours and meeting duration. Available slots are calculated 
-                      based on these settings and your existing Google Calendar events.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label htmlFor="avail-start" className="block text-xs font-medium text-surface-700 mb-1">
-                        Start Time
-                      </label>
-                      <input
-                        id="avail-start"
-                        type="time"
-                        value={availabilityStart}
-                        onChange={(e) => setAvailabilityStart(e.target.value)}
-                        className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="avail-end" className="block text-xs font-medium text-surface-700 mb-1">
-                        End Time
-                      </label>
-                      <input
-                        id="avail-end"
-                        type="time"
-                        value={availabilityEnd}
-                        onChange={(e) => setAvailabilityEnd(e.target.value)}
-                        className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="avail-duration" className="block text-xs font-medium text-surface-700 mb-1">
-                        Meeting Duration
-                      </label>
-                      <select
-                        id="avail-duration"
-                        value={meetingDuration}
-                        onChange={(e) => setMeetingDuration(parseInt(e.target.value, 10))}
-                        className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 transition-all"
-                      >
-                        <option value={15}>15 minutes</option>
-                        <option value={30}>30 minutes</option>
-                        <option value={45}>45 minutes</option>
-                        <option value={60}>60 minutes</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleSaveAvailability}
-                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 shadow-sm transition-all"
-                    >
-                      {availSaved ? (
-                        <><CheckCircle2 className="h-4 w-4" /> Saved!</>
-                      ) : (
-                        <><Save className="h-4 w-4" /> Save Availability</>
-                      )}
-                    </button>
-                    {availSaved && (
-                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 animate-fade-in">
-                        <CheckCircle2 className="h-3 w-3" /> Availability updated
-                      </span>
-                    )}
-                  </div>
-                </form>
-
-                {/* Info Box */}
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                  <p className="text-xs text-blue-800 leading-relaxed">
-                    <strong>How it works:</strong> When a lead visits your booking page, they select 
-                    a date and time. The system checks your Google Calendar for existing events and 
-                    shows only available slots. Once they book, a calendar event is created with a 
-                    Google Meet link, and the lead is added to your pipeline automatically.
-                  </p>
-                </div>
-
-                {/* Setup Guide when not connected */}
-                {!calendarConnected && (
-                  <details className="group">
-                    <summary className="cursor-pointer text-sm font-medium text-primary-600 hover:text-primary-700 list-none flex items-center gap-1">
-                      <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                      How to set up Google Calendar OAuth
-                    </summary>
-                    <div className="mt-3 space-y-2 text-xs text-surface-600 pl-5">
-                      <p>1. Go to the <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">Google Cloud Console</a></p>
-                      <p>2. Create a new project or select an existing one</p>
-                      <p>3. Enable the <strong>Google Calendar API</strong></p>
-                      <p>4. Go to <strong>Credentials</strong> → <strong>Create Credentials</strong> → <strong>OAuth Client ID</strong></p>
-                      <p>5. Application type: <strong>Web application</strong></p>
-                      <p>6. Add redirect URI: <code className="bg-surface-100 px-1 rounded">{typeof window !== "undefined" ? `${window.location.origin}/api/calendar/callback` : "/api/calendar/callback"}</code></p>
-                      <p>7. Add these environment variables to your <code className="bg-surface-100 px-1 rounded">.env.local</code>:</p>
-                      <pre className="bg-surface-100 p-2 rounded-lg text-xs font-mono mt-1">
-                        {`GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-NEXT_PUBLIC_BASE_URL=${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}`}
-                      </pre>
-                      <p>8. Restart the dev server and refresh this page to connect</p>
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-
             {activeSection === "preferences" && (
               <BusinessProfileForm
                 profile={businessProfile}
@@ -1554,7 +1431,189 @@ NEXT_PUBLIC_BASE_URL=${typeof window !== "undefined" ? window.location.origin : 
               </div>
             )}
 
-            {activeSection !== "api" && activeSection !== "calendar" && activeSection !== "preferences" && activeSection !== "email" && activeSection !== "whatsapp" && activeSection !== "notifications" && activeSection !== "security" && (
+            {activeSection === "countries" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-base font-semibold text-surface-900 flex items-center gap-2">
+                    <Earth className="h-5 w-5 text-primary-600" />
+                    Global Country Targeting
+                  </h3>
+                  <p className="text-sm text-surface-500 mt-1">
+                    Configure which countries to target for lead generation. 
+                    The pipeline will scrape Google Maps for wellness businesses in selected markets.
+                    <strong className="block mt-1 text-primary-600">60+ Healy markets across 4 regions</strong>
+                  </p>
+                </div>
+
+                {/* Region Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">Target Region</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {COUNTRY_REGIONS.map((r) => (
+                      <button
+                        key={r.value}
+                        onClick={() => setTargetRegion(r.value)}
+                        className={clsx(
+                          "rounded-lg border p-3 text-left transition-all",
+                          targetRegion === r.value
+                            ? "border-primary-300 bg-primary-50 ring-1 ring-primary-200"
+                            : "border-surface-200 hover:bg-surface-50 hover:border-surface-300"
+                        )}
+                      >
+                        <p className="text-sm font-medium text-surface-900">{r.label}</p>
+                        <p className="text-xs text-surface-500 mt-0.5">{r.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
+                  <input
+                    type="text"
+                    value={countrySearch}
+                    onChange={(e) => setCountrySearch(e.target.value)}
+                    placeholder="Search countries by name or code..."
+                    aria-label="Search countries"
+                    className="w-full rounded-lg border border-surface-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                  />
+                </div>
+
+                {/* Select All / Clear */}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-surface-500">
+                    <span className="font-semibold text-surface-700">{getFilteredCountries().length}</span> countries shown
+                    {targetRegion && ` in ${COUNTRY_REGIONS.find((r) => r.value === targetRegion)?.label || targetRegion}`}
+                    {countrySearch && ` matching "${countrySearch}"`}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={selectAllCountries}
+                      className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-medium text-surface-600 hover:bg-surface-50 transition-all"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={clearAllCountries}
+                      className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-medium text-surface-600 hover:bg-surface-50 transition-all"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Country Grid */}
+                {countriesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+                    <span className="ml-2 text-sm text-surface-500">Loading countries...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                    {getFilteredCountries().map((c) => {
+                      const isEnabled = enabledCountries.has(c.code);
+                      return (
+                        <button
+                          key={c.code}
+                          onClick={() => toggleCountry(c.code)}
+                          className={clsx(
+                            "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all",
+                            isEnabled
+                              ? "border-emerald-200 bg-emerald-50/50"
+                              : "border-surface-200 hover:bg-surface-50 hover:border-surface-300"
+                          )}
+                        >
+                          <span className="text-lg">{c.flag}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-surface-900 truncate">{c.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-medium text-surface-400 uppercase">{c.code}</span>
+                              <ChannelBadge preference={c.channelPreference} />
+                              <WAPenetrationBadge level={c.whatsappPenetration} />
+                            </div>
+                          </div>
+                          <div className={clsx(
+                            "flex h-5 w-5 items-center justify-center rounded transition-all",
+                            isEnabled ? "text-emerald-500" : "text-surface-300"
+                          )}>
+                            {isEnabled ? (
+                              <ToggleRight className="h-5 w-5" />
+                            ) : (
+                              <ToggleLeft className="h-5 w-5" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {getFilteredCountries().length === 0 && (
+                      <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                        <MapPin className="h-8 w-8 text-surface-300 mb-2" />
+                        <p className="text-sm text-surface-500">No countries match your search</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 text-center">
+                    <p className="text-lg font-bold text-surface-900">{enabledCountries.size}</p>
+                    <p className="text-[11px] text-surface-500">Enabled Countries</p>
+                  </div>
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 text-center">
+                    <p className="text-lg font-bold text-emerald-600">
+                      {ALL_COUNTRIES_UI.filter((c) => enabledCountries.has(c.code) && c.whatsappPenetration === "high").length}
+                    </p>
+                    <p className="text-[11px] text-surface-500">High WhatsApp Reach</p>
+                  </div>
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 text-center">
+                    <p className="text-lg font-bold text-blue-600">
+                      {ALL_COUNTRIES_UI.filter((c) => enabledCountries.has(c.code) && c.channelPreference === "email").length}
+                    </p>
+                    <p className="text-[11px] text-surface-500">Email Preferred</p>
+                  </div>
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 text-center">
+                    <p className="text-lg font-bold text-primary-600">
+                      {Array.from(new Set(ALL_COUNTRIES_UI.filter((c) => enabledCountries.has(c.code)).map((c) => c.region))).length}
+                    </p>
+                    <p className="text-[11px] text-surface-500">Active Regions</p>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveCountries}
+                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 shadow-sm transition-all"
+                  >
+                    {countriesSaved ? (
+                      <><CheckCircle2 className="h-4 w-4" /> Saved!</>
+                    ) : (
+                      <><Save className="h-4 w-4" /> Save Country Settings</>
+                    )}
+                  </button>
+                  {countriesSaved && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 animate-fade-in">
+                      <CheckCircle2 className="h-3 w-3" /> Country targeting saved — pipeline will use these settings
+                    </span>
+                  )}
+                </div>
+
+                {/* Info Box */}
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    <strong>🌍 Global lead generation tips:</strong><br />
+                    • <strong>WhatsApp-first countries</strong> (India, Philippines, Mexico, Colombia): WhatsApp is the primary business channel. Messages via WhatsApp get ~90%+ open rates.<br />
+                    • <strong>Email-first countries</strong> (Germany, UK, US, Japan): Email is standard for business communication. WhatsApp follow-ups supplement.<br />
+                    • <strong>Enable all countries</strong> for maximum reach. The AI enrichment automatically detects each lead's country and adjusts the outreach strategy.<br />
+                    • <strong>Region focus</strong>: Start with APAC for highest WhatsApp penetration, then expand to Americas and Europe.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeSection !== "api" && activeSection !== "preferences" && activeSection !== "email" && activeSection !== "whatsapp" && activeSection !== "countries" && activeSection !== "notifications" && activeSection !== "security" && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Sparkles className="mb-3 h-10 w-10 text-surface-300" />
                 <p className="text-sm font-medium text-surface-500">Coming Soon</p>

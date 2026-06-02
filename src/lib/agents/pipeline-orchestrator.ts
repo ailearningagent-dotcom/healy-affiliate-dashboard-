@@ -14,7 +14,6 @@
  *   2. Enrich (Gemini Flash-Lite): ~$0.00005/lead
  *   3. Nurture (Default templates): $0
  *   4. Followup (Email via Gmail SMTP + WhatsApp Web): $0
- *   5. Auto-Book (Calendar API): $0
  */
 
 import { logger } from "@/lib/logger";
@@ -30,10 +29,12 @@ import { scrapeGoogleMaps } from "./google-maps-scraper";
 import { callLLM } from "@/lib/llm/call-llm";
 import { NurtureEngine } from "./nurture-engine";
 import { FollowupEngine } from "./followup-engine";
-import { AutoBooker } from "./auto-booker";
 import { engageLeads } from "./lead-engager";
 import { getDefaultProvider, getDefaultModel } from "./default-config";
 import { getDefaultBusinessProfile, computeLeadTemperature, type Lead, type ScrapedLead, type BusinessProfile, type AgentResult, type NurtureSequence } from "./types";
+import { detectCountry, getChannelOrderForCountry, getCountryByCode } from "./countries";
+import type { CountryInfo, Region } from "./countries";
+import { validateAndFilterLeads, logValidationSummary } from "./lead-validator";
 
 // ========================================================================
 // CONFIGURATION KEYS (stored in DB settings table)
@@ -47,13 +48,14 @@ const CONFIG_KEYS = {
   ENRICH_ENABLED: `${SETTING_PREFIX}enrich_enabled`,
   NURTURE_ENABLED: `${SETTING_PREFIX}nurture_enabled`,
   FOLLOWUP_ENABLED: `${SETTING_PREFIX}followup_enabled`,
-  AUTO_BOOK_ENABLED: `${SETTING_PREFIX}auto_book_enabled`,
   DEFAULT_SOURCE: `${SETTING_PREFIX}default_source`,
   DEFAULT_LOCATION: `${SETTING_PREFIX}default_location`,
   DEFAULT_QUERY: `${SETTING_PREFIX}default_query`,
   MAX_LEADS_PER_SCRAPE: `${SETTING_PREFIX}max_leads_per_scrape`,
   PREFERRED_MODEL: `${SETTING_PREFIX}preferred_model`,
   PREFERRED_PROVIDER: `${SETTING_PREFIX}preferred_provider`,
+  TARGET_COUNTRY: `${SETTING_PREFIX}target_country`,
+  TARGET_REGION: `${SETTING_PREFIX}target_region`,
 } as const;
 
 const STATE_KEYS = {
@@ -78,14 +80,24 @@ export interface PipelineConfig {
   enrichEnabled: boolean;
   nurtureEnabled: boolean;
   followupEnabled: boolean;
-  autoBookEnabled: boolean;
   defaultSource: string;
   defaultLocation: string;
   defaultQuery: string;
   maxLeadsPerScrape: number;
   preferredModel: string;
   preferredProvider: string;
+  // ===== Country targeting (global lead generation) =====
+  targetCountry?: string;   // ISO code like "IN", "US", "DE" — empty for all
+  targetRegion?: string;    // "apac" | "americas" | "europe" | "middle-east"
 }
+
+export const REGION_OPTIONS = [
+  { value: "", label: "🌍 All Countries" },
+  { value: "apac", label: "🌏 Asia Pacific" },
+  { value: "americas", label: "🌎 Americas" },
+  { value: "europe", label: "🌍 Europe" },
+  { value: "middle-east", label: "🕌 Middle East" },
+];
 
 export function getDefaultPipelineConfig(): PipelineConfig {
   return {
@@ -94,14 +106,32 @@ export function getDefaultPipelineConfig(): PipelineConfig {
     enrichEnabled: true,
     nurtureEnabled: true,
     followupEnabled: true,
-    autoBookEnabled: true,
     defaultSource: "google-maps",
     defaultLocation: "",
     defaultQuery: "wellness center health clinic",
     maxLeadsPerScrape: 10,
     preferredModel: getDefaultModel("flash-lite"),
     preferredProvider: getDefaultProvider(),
+    targetCountry: "",
+    targetRegion: "",
   };
+}
+
+/** Get the display name for a country code */
+function getCountryName(code: string): string {
+  const country = getCountryByCode(code);
+  return country?.name || code;
+}
+
+/** Get display name for a region */
+function getRegionName(region: string): string {
+  const labels: Record<string, string> = {
+    apac: "Asia Pacific",
+    americas: "Americas",
+    europe: "Europe",
+    "middle-east": "Middle East",
+  };
+  return labels[region] || region;
 }
 
 // ========================================================================
@@ -125,16 +155,17 @@ export interface PipelineState {
 // ENRICHMENT SYSTEM PROMPT (cheapest model possible)
 // ========================================================================
 
-const ENRICH_SYSTEM_PROMPT = `You are a lead qualification specialist for {businessName} ({industry}). Your task is to analyze each lead and provide:
+const ENRICH_SYSTEM_PROMPT = `You are a lead qualification specialist for {businessName} ({industry}), a global wellness technology company operating in 60+ countries. Your task is to analyze each lead and provide:
 
 1. Persona Type: "practitioner" | "wellness-seeker" | "biohacker" | "business-builder"
 2. Lead Score: 0-100 (based on fit for {productDescription})
 3. Pain Points: What specific needs or problems they likely have
-4. Best Outreach Angle: How to approach them
-5. Notes: 1-2 sentence summary of why they're a good fit
+4. Best Outreach Angle: How to approach them (be country-aware — WhatsApp is standard in APAC/LATAM, email in EU/NA)
+5. Country: Detect the likely country from the business name, notes, or phone format. Use ISO alpha-2 codes ("IN", "US", "DE", "PH", "MX", etc.)
+6. Notes: 1-2 sentence summary of why they're a good fit, including region-specific context
 
 Respond with a JSON array where each element corresponds to the input lead in order.
-Each element: { index: number, personaType: string, score: number, painPoints: string, outreachAngle: string, notes: string }`;
+Each element: { index: number, personaType: string, score: number, painPoints: string, outreachAngle: string, country: string, notes: string }`;
 
 // ========================================================================
 // THE ORCHESTRATOR
@@ -149,14 +180,13 @@ class PipelineOrchestrator {
 
   async getConfig(): Promise<PipelineConfig> {
     const defaults = getDefaultPipelineConfig();
-    const [enabled, interval, enrich, nurture, followup, autoBook, source, location, query, maxLeads, model, provider, globalProvider, globalModel] =
+    const [enabled, interval, enrich, nurture, followup, source, location, query, maxLeads, model, provider, globalProvider, globalModel] =
       await Promise.all([
         getSetting(CONFIG_KEYS.ENABLED),
         getSetting(CONFIG_KEYS.SCRAPE_INTERVAL_HOURS),
         getSetting(CONFIG_KEYS.ENRICH_ENABLED),
         getSetting(CONFIG_KEYS.NURTURE_ENABLED),
         getSetting(CONFIG_KEYS.FOLLOWUP_ENABLED),
-        getSetting(CONFIG_KEYS.AUTO_BOOK_ENABLED),
         getSetting(CONFIG_KEYS.DEFAULT_SOURCE),
         getSetting(CONFIG_KEYS.DEFAULT_LOCATION),
         getSetting(CONFIG_KEYS.DEFAULT_QUERY),
@@ -173,13 +203,14 @@ class PipelineOrchestrator {
       enrichEnabled: enrich === "true" || enrich === null || enrich === undefined,
       nurtureEnabled: nurture === "true" || nurture === null || nurture === undefined,
       followupEnabled: followup === "true" || followup === null || followup === undefined,
-      autoBookEnabled: autoBook === "true" || autoBook === null || autoBook === undefined,
       defaultSource: source || defaults.defaultSource,
       defaultLocation: location || defaults.defaultLocation,
       defaultQuery: query || defaults.defaultQuery,
       maxLeadsPerScrape: maxLeads ? parseInt(maxLeads) : defaults.maxLeadsPerScrape,
       preferredModel: model || globalModel || defaults.preferredModel,
       preferredProvider: provider || globalProvider || defaults.preferredProvider,
+      targetCountry: (await getSetting(CONFIG_KEYS.TARGET_COUNTRY)) || defaults.targetCountry,
+      targetRegion: (await getSetting(CONFIG_KEYS.TARGET_REGION)) || defaults.targetRegion,
     };
   }
 
@@ -190,13 +221,14 @@ class PipelineOrchestrator {
     if (updates.enrichEnabled !== undefined) promises.push(setSetting(CONFIG_KEYS.ENRICH_ENABLED, String(updates.enrichEnabled)));
     if (updates.nurtureEnabled !== undefined) promises.push(setSetting(CONFIG_KEYS.NURTURE_ENABLED, String(updates.nurtureEnabled)));
     if (updates.followupEnabled !== undefined) promises.push(setSetting(CONFIG_KEYS.FOLLOWUP_ENABLED, String(updates.followupEnabled)));
-    if (updates.autoBookEnabled !== undefined) promises.push(setSetting(CONFIG_KEYS.AUTO_BOOK_ENABLED, String(updates.autoBookEnabled)));
     if (updates.defaultSource !== undefined) promises.push(setSetting(CONFIG_KEYS.DEFAULT_SOURCE, updates.defaultSource));
     if (updates.defaultLocation !== undefined) promises.push(setSetting(CONFIG_KEYS.DEFAULT_LOCATION, updates.defaultLocation));
     if (updates.defaultQuery !== undefined) promises.push(setSetting(CONFIG_KEYS.DEFAULT_QUERY, updates.defaultQuery));
     if (updates.maxLeadsPerScrape !== undefined) promises.push(setSetting(CONFIG_KEYS.MAX_LEADS_PER_SCRAPE, String(updates.maxLeadsPerScrape)));
     if (updates.preferredModel !== undefined) promises.push(setSetting(CONFIG_KEYS.PREFERRED_MODEL, updates.preferredModel));
     if (updates.preferredProvider !== undefined) promises.push(setSetting(CONFIG_KEYS.PREFERRED_PROVIDER, updates.preferredProvider));
+    if (updates.targetCountry !== undefined) promises.push(setSetting(CONFIG_KEYS.TARGET_COUNTRY, updates.targetCountry));
+    if (updates.targetRegion !== undefined) promises.push(setSetting(CONFIG_KEYS.TARGET_REGION, updates.targetRegion));
     await Promise.all(promises);
 
     // If enabling, schedule immediately
@@ -286,10 +318,10 @@ class PipelineOrchestrator {
    * Run a single full pipeline tick (scrape → enrich → nurture).
    * Safe to call externally (e.g., from cron endpoint).
    */
-  async tick(): Promise<{ phase: string; leadsAdded: number; leadsEnriched: number; sequencesCreated: number; followupsSent: number; appointmentsBooked: number; cost: number }> {
+  async tick(): Promise<{ phase: string; leadsAdded: number; skipped: number; leadsEnriched: number; sequencesCreated: number; followupsSent: number; cost: number }> {
     const config = await this.getConfig();
     if (this._running) {
-      return { phase: "skipped (already running)", leadsAdded: 0, leadsEnriched: 0, sequencesCreated: 0, followupsSent: 0, appointmentsBooked: 0, cost: 0 };
+      return { phase: "skipped (already running)", leadsAdded: 0, skipped: 0, leadsEnriched: 0, sequencesCreated: 0, followupsSent: 0, cost: 0 };
     }
 
     this._running = true;
@@ -297,16 +329,17 @@ class PipelineOrchestrator {
 
     let totalCost = 0;
     let leadsAdded = 0;
+    let leadsSkipped = 0;
     let leadsEnriched = 0;
     let sequencesCreated = 0;
     let followupsSent = 0;
-    let appointmentsBooked = 0;
 
     try {
       // ========== PHASE 1: Scrape ==========
       if (config.defaultSource === "google-maps") {
         const scrapeResult = await this.runScrapePhase(config);
         leadsAdded = scrapeResult.leadsAdded;
+        leadsSkipped = scrapeResult.skipped;
         totalCost += scrapeResult.cost;
       }
 
@@ -334,13 +367,6 @@ class PipelineOrchestrator {
         // Note: FollowupEngine already advances sequences internally on success
       }
 
-      // ========== PHASE 5: Auto-Book Appointments ==========
-      if (config.autoBookEnabled) {
-        const booker = new AutoBooker();
-        const bookingResult = await booker.scanAndBook();
-        appointmentsBooked = bookingResult.booked;
-      }
-
       // ========== Update state ==========
       const state = await this.getState();
       await this.setState({
@@ -354,7 +380,7 @@ class PipelineOrchestrator {
       // Schedule next scrape
       await this.scheduleNextScrape();
 
-      logger.info("Pipeline", "Tick complete", { leadsAdded, leadsEnriched, sequencesCreated, followupsSent, appointmentsBooked, cost: totalCost });
+      logger.info("Pipeline", "Tick complete", { leadsAdded, leadsEnriched, sequencesCreated, followupsSent, cost: totalCost });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown pipeline error";
       logger.error("Pipeline", "Tick error", { error: message });
@@ -366,7 +392,7 @@ class PipelineOrchestrator {
     // Record this tick as an agent result for history
     await upsertResult({
       id: crypto.randomUUID(),
-      agentType: "analyst",
+      agentType: "scraper",
       status: "completed",
       output: JSON.stringify({
         type: "pipeline_tick",
@@ -374,33 +400,46 @@ class PipelineOrchestrator {
         leadsEnriched,
         sequencesCreated,
         followupsSent,
-        appointmentsBooked,
         cost: totalCost,
       }),
       createdAt: new Date(),
       metadata: {
-        label: `Pipeline: +${leadsAdded} leads, ${followupsSent} msgs, ${appointmentsBooked} booked, $${totalCost.toFixed(4)} cost`,
+        label: `Pipeline: +${leadsAdded} leads, ${followupsSent} msgs, $${totalCost.toFixed(4)} cost`,
       },
     });
 
-    return { phase: "complete", leadsAdded, leadsEnriched, sequencesCreated, followupsSent, appointmentsBooked, cost: totalCost };
+    return { phase: "complete", leadsAdded, skipped: leadsSkipped, leadsEnriched, sequencesCreated, followupsSent, cost: totalCost };
   }
 
   // ==================== PHASE 1: SCRAPE (Google Maps — $0) ====================
 
-  private async runScrapePhase(config: PipelineConfig): Promise<{ leadsAdded: number; cost: number }> {
+  private async runScrapePhase(config: PipelineConfig): Promise<{ leadsAdded: number; skipped: number; cost: number }> {
     const profile = await this._getBusinessProfile();
     const query = config.defaultQuery || "wellness center health clinic";
     const location = config.defaultLocation || (profile.businessName === getDefaultBusinessProfile().businessName ? "" : "");
 
-    logger.info("Pipeline", `Scraping Google Maps: "${query}" ${location ? `in ${location}` : ""}`);
+    // Use country/region targeting if configured
+    const scrapeLocation = config.targetCountry 
+      ? getCountryName(config.targetCountry)
+      : config.targetRegion
+      ? getRegionName(config.targetRegion)
+      : location;
+
+    logger.info("Pipeline", `Scraping Google Maps: "${query}" ${scrapeLocation ? `in ${scrapeLocation}` : ""}${config.targetCountry ? ` [country: ${config.targetCountry}]` : config.targetRegion ? ` [region: ${config.targetRegion}]` : ""}`);
 
     // Browser scrape — $0 API cost
-    const scrapedLeads: ScrapedLead[] = await scrapeGoogleMaps({
+    const allScrapedLeads: ScrapedLead[] = await scrapeGoogleMaps({
       query,
-      location: location || undefined,
+      location: scrapeLocation || undefined,
       maxResults: config.maxLeadsPerScrape || 10,
     });
+
+    // === VALIDATION: Filter out invalid/incomplete leads ===
+    const { validLeads: scrapedLeads, summary: validationSummary } = validateAndFilterLeads(allScrapedLeads);
+    const skipped = validationSummary.skippedLeads;
+    if (skipped > 0) {
+      logValidationSummary(`PipelineScrape "${query}"`, validationSummary);
+    }
 
     let leadsAdded = 0;
     const newLeads: Lead[] = [];
@@ -415,6 +454,8 @@ class PipelineOrchestrator {
 
       if (!isDuplicate) {
         const temperature = computeLeadTemperature({ score: sl.score || 50, status: "new" });
+        // Auto-detect country from phone number or location
+        const detectedCountry = detectCountry({ phone: sl.phone, location: scrapeLocation });
         const newLead: Lead = {
           id: crypto.randomUUID(),
           name: sl.name,
@@ -431,6 +472,9 @@ class PipelineOrchestrator {
           personaType: sl.personaType || "customer",
           notes: sl.notes,
           createdAt: new Date(),
+          country: detectedCountry?.code || config.targetCountry || '',
+          region: (detectedCountry?.region as any) || config.targetRegion || '',
+          language: detectedCountry?.language || '',
         };
         await upsertLead(newLead);
         newLeads.push(newLead);
@@ -447,18 +491,19 @@ class PipelineOrchestrator {
 
     await this.setState({ lastScrapeAt: new Date().toISOString() });
 
-    return { leadsAdded, cost: 0 }; // Browser scraping = free
+    return { leadsAdded, skipped, cost: 0 }; // Browser scraping = free
   }
 
   // ==================== PHASE 2: ENRICH (Gemini Flash-Lite — ~$0.00005/lead) ====================
 
   private async runEnrichPhase(config: PipelineConfig): Promise<{ leadsEnriched: number; cost: number }> {
     const leads = await dbList<Lead>("leads");
-    // Only enrich leads that are "new" with default/low scores or unknown persona
+
+    // AI enrichment for scoring
     const toEnrich = leads.filter(
       (l) =>
         (l.status === "new" || l.status === "contacted") &&
-        (l.score < 30 || l.score === 50) // default score = needs enrichment
+        (l.score < 30 || l.score === 50)
     );
 
     if (toEnrich.length === 0) {
@@ -476,9 +521,7 @@ class PipelineOrchestrator {
       const systemPrompt = ENRICH_SYSTEM_PROMPT
         .replace(/\{businessName\}/g, profile.businessName)
         .replace(/\{industry\}/g, profile.industry)
-        .replace(/\{productDescription\}/g, profile.productDescription);
-
-      const userPrompt = `Analyze these ${batch.length} leads and return a JSON array with enrichment data for each:\n\n${batch.map((l, idx) => `[${idx}] Name: ${l.name}, Role: ${l.role}, Company: ${l.company}, Notes: ${l.notes || "N/A"}`).join("\n")}\n\nReturn a JSON array of { index, personaType, score, painPoints, outreachAngle, notes } for each lead. Use realistic scores and personas.`;
+        .replace(/\{productDescription\}/g, profile.productDescription);        const userPrompt = `Analyze these ${batch.length} leads and return a JSON array with enrichment data for each. Be country-aware — detect their country from the business name/location if possible:\n\n${batch.map((l, idx) => `[${idx}] Name: ${l.name}, Role: ${l.role}, Company: ${l.company}, Country: ${l.country || "unknown"}, Notes: ${l.notes || "N/A"}`).join("\n")}\n\nReturn a JSON array of { index, personaType, score, painPoints, outreachAngle, country: "ISO code", notes } for each lead. Use realistic scores and personas.`;
 
       try {
         const output = await callLLM(systemPrompt, userPrompt, {
@@ -489,7 +532,7 @@ class PipelineOrchestrator {
         });
 
         // Parse the enrichment results
-        let enrichments: Array<{ index: number; personaType: string; score: number; painPoints: string; outreachAngle: string; notes: string }> = [];
+        let enrichments: Array<{ index: number; personaType: string; score: number; painPoints: string; outreachAngle: string; country?: string; notes: string }> = [];
         try {
           // Clean markdown wrappers
           let cleaned = output.trim();
@@ -510,11 +553,17 @@ class PipelineOrchestrator {
             const newScore = Math.min(Math.max(enrichment.score || 50, 0), 100);
             // Re-compute temperature based on enriched score and current status
             const updatedTemperature = computeLeadTemperature({ score: newScore, status: lead.status, replied: false });
+            // Update country if AI detected one
+            const aiCountry = enrichment.country ? enrichment.country.toUpperCase() : lead.country;
+            const countryInfo = aiCountry ? (await import("./countries")).getCountryByCode(aiCountry) : undefined;
             await upsertLead({
               ...lead,
               score: newScore,
               temperature: updatedTemperature,
               personaType: enrichment.personaType || lead.personaType,
+              country: countryInfo?.code || aiCountry || lead.country || '',
+              region: (countryInfo?.region as any) || lead.region || '',
+              language: countryInfo?.language || lead.language || '',
               notes: enrichment.notes ? `${lead.notes}\n[AI Enriched] ${enrichment.notes}` : lead.notes,
             });
             enriched++;
@@ -581,14 +630,36 @@ class PipelineOrchestrator {
 
   private _startTimer(): void {
     if (this._timer) return;
-    // Check every 15 minutes if a tick is due
+    // Check every 10 minutes for: scrape ticks AND independent follow-up cycles
     this._timer = setInterval(async () => {
       try {
-        await this.checkAndRun();
+        await this.checkAndRun(); // Full scrape tick (if due)
+        await this.checkAndRunFollowups(); // Follow-up cycle (always, if enabled)
       } catch (e) {
         logger.error("Pipeline", "Timer error", { error: String(e) });
       }
-    }, 15 * 60 * 1000); // 15-minute check interval
+    }, 10 * 60 * 1000); // 10-minute check interval
+  }
+
+  /**
+   * Run the follow-up engine independently of the scrape schedule.
+   * This ensures nurture sequences advance and send on time even
+   * between scrape cycles.
+   */
+  private async checkAndRunFollowups(): Promise<void> {
+    try {
+      const config = await this.getConfig();
+      if (!config.enabled) return;
+      if (!config.followupEnabled) return;
+
+      const engine = new FollowupEngine();
+      const result = await engine.runFollowupCycle();
+      if (result.totalSent > 0) {
+        logger.info("Pipeline", `Follow-up cycle: ${result.totalSent} messages sent, $${result.totalCost.toFixed(4)} cost`);
+      }
+    } catch (e) {
+      logger.error("Pipeline", "Follow-up cycle error", { error: String(e) });
+    }
   }
 
   private _stopTimer(): void {

@@ -85,7 +85,7 @@ describe("LeadsPage", () => {
   it("shows filter by status", async () => {
     render(<LeadsPage />);
     await waitFor(() => {
-      expect(screen.getByDisplayValue("All Status")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("📋 All Status")).toBeInTheDocument();
     });
   });
 
@@ -167,11 +167,14 @@ describe("LeadsPage", () => {
     await user.click(scrapeButton);
     expect(screen.getByText(/Scrape Leads from Google Maps/i)).toBeInTheDocument();
 
-    const closeButtons = screen.getAllByRole("button");
-    const xButton = Array.from(closeButtons).find(
-      (btn) => btn.querySelector('[data-testid="icon-X"]')
-    );
-    if (xButton) await user.click(xButton);
+    // Find and click the close button
+    const modalContainer = document.querySelector('[class*="fixed inset-0"]');
+    expect(modalContainer).not.toBeNull();
+    
+    // Click outside the modal to close it
+    if (modalContainer) {
+      await user.click(modalContainer);
+    }
 
     await waitFor(() => {
       expect(screen.queryByText(/Scrape Leads from Google Maps/i)).not.toBeInTheDocument();

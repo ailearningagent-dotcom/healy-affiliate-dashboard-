@@ -16,7 +16,7 @@ vi.mock("next/link", () => ({
 vi.mock("lucide-react", () => {
   const icons: Record<string, unknown> = {};
   const names = [
-    "LayoutDashboard", "Bot", "FileText", "Users", "Calendar", "Settings",
+    "LayoutDashboard", "Bot", "FileText", "Users", "Calendar", "CalendarDays", "Settings",
     "Sparkles", "Building2", "History", "Moon", "Sun", "Menu", "X", "Shield",
     "Monitor", "Play",
   ];

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgentManager } from "@/lib/agents/agent-manager";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
 
     return NextResponse.json({ metrics });
   } catch (error) {
-    console.error("[Dashboard API] Failed to load metrics:", error);
+    logger.error("DashboardAPI", "Failed to load metrics", { error: String(error) });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load dashboard metrics" },
       { status: 500 }

@@ -12,11 +12,6 @@ import {
   ArrowRight,
   Mail,
   TrendingUp,
-  Crown,
-  DollarSign,
-  BarChart3,
-  Palette,
-  Code2,
   Globe,
 } from "lucide-react";
 import type { AgentType, AgentStatus } from "@/lib/agents/types";
@@ -124,98 +119,6 @@ const AGENTS: AgentInfo[] = [
         type: "select",
         options: ["warm", "professional", "casual", "empathetic"],
       },
-    ],
-  },
-  {
-    type: "ceo",
-    name: "AI CEO",
-    description: "Strategic orchestrator — sets goals, prioritizes tasks, and coordinates all departments",
-    icon: Crown,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    gradient: "from-purple-500 to-violet-600",
-    inputs: [
-      { label: "Business Goal", key: "goal", type: "text" },
-      {
-        label: "Timeframe",
-        key: "timeframe",
-        type: "select",
-        options: ["This Week", "This Month", "This Quarter", "This Year"],
-      },
-      { label: "Target Outcome", key: "targetOutcome", type: "text" },
-      {
-        label: "Priority",
-        key: "priority",
-        type: "select",
-        options: ["critical", "high", "medium", "low"],
-      },
-      { label: "Budget (optional)", key: "budget", type: "text" },
-    ],
-  },
-  {
-    type: "cfo",
-    name: "AI CFO",
-    description: "Financial oversight — budget planning, ROI analysis, and cost per lead optimization",
-    icon: DollarSign,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    gradient: "from-emerald-500 to-teal-600",
-    inputs: [
-      { label: "Campaign Name", key: "campaignName", type: "text" },
-      { label: "Total Budget ($)", key: "budget", type: "text" },
-      { label: "Projected Leads", key: "projectedLeads", type: "text" },
-      { label: "Projected Appointments", key: "projectedAppointments", type: "text" },
-      { label: "Duration (days)", key: "durationDays", type: "text" },
-      { label: "Channels (comma separated)", key: "channels", type: "text" },
-    ],
-  },
-  {
-    type: "analyst",
-    name: "AI Data Analyst",
-    description: "Web scraping, lead enrichment, market intelligence, and prospect discovery at scale",
-    icon: BarChart3,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    gradient: "from-blue-500 to-cyan-600",
-    inputs: [
-      { label: "Target Market", key: "targetMarket", type: "text" },
-      { label: "Industry / Niche", key: "industry", type: "text" },
-      { label: "Location", key: "location", type: "text" },
-      { label: "Roles (comma separated)", key: "roles", type: "text" },
-      { label: "Max Leads", key: "maxLeads", type: "text" },
-      { label: "Sources", key: "sources", type: "select", options: ["directory, web, social", "directory, web", "web, social", "all"] },
-    ],
-  },
-  {
-    type: "design",
-    name: "AI Design Team",
-    description: "Poster concepts, viral video strategies, and brand assets for high-impact visual marketing",
-    icon: Palette,
-    color: "text-pink-600",
-    bg: "bg-pink-50",
-    gradient: "from-pink-500 to-rose-600",
-    inputs: [
-      { label: "Campaign Name", key: "campaignName", type: "text" },
-      { label: "Topic / Theme", key: "topic", type: "text" },
-      { label: "Target Audience", key: "targetAudience", type: "text" },
-      { label: "Platforms (comma)", key: "platforms", type: "text" },
-      { label: "Brand Colors (comma)", key: "brandColors", type: "text" },
-      { label: "Vibe", key: "vibe", type: "select", options: ["professional", "educational", "emotional", "trendy", "minimalist"] },
-    ],
-  },
-  {
-    type: "developer",
-    name: "AI Developer",
-    description: "Auto-fixes errors, reviews code, manages dependencies, and monitors application health",
-    icon: Code2,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-    gradient: "from-cyan-500 to-blue-600",
-    inputs: [
-      { label: "Specific Issue", key: "specificIssue", type: "text" },
-      { label: "Error Logs (paste output)", key: "errorLogs", type: "textarea" },
-      { label: "Affected Files (comma)", key: "filePaths", type: "text" },
-      { label: "Project Type", key: "projectType", type: "select", options: ["Next.js + TypeScript", "React + TypeScript", "Node.js + TypeScript", "Generic TypeScript"] },
     ],
   },
   {
@@ -472,60 +375,6 @@ export default function AgentsPage() {
           context.action = inputs.action ?? "generate_message";
           context.channel = inputs.channel ?? "email";
           context.tone = inputs.tone ?? "warm";
-          break;
-        }
-        case "ceo": {
-          agentInput = {
-            goal: inputs.goal ?? "",
-            timeframe: inputs.timeframe ?? "This Month",
-            targetOutcome: inputs.targetOutcome ?? "",
-            priority: (inputs.priority ?? "high") as "critical" | "high" | "medium" | "low",
-          };
-          if (inputs.budget) agentInput.budget = inputs.budget;
-          context.subAgent = "task-prioritizer";
-          break;
-        }
-        case "cfo": {
-          agentInput = {
-            campaignName: inputs.campaignName ?? "",
-            budget: parseFloat(inputs.budget ?? "1000"),
-            projectedLeads: parseInt(inputs.projectedLeads ?? "50"),
-            projectedAppointments: parseInt(inputs.projectedAppointments ?? "10"),
-            durationDays: parseInt(inputs.durationDays ?? "30"),
-            channels: (inputs.channels ?? "email,whatsapp,linkedin").split(",").map((s: string) => s.trim()),
-          };
-          break;
-        }
-        case "analyst": {
-          agentInput = {
-            targetMarket: inputs.targetMarket ?? "",
-            industry: inputs.industry ?? "",
-            location: inputs.location ?? "",
-            roles: (inputs.roles ?? "").split(",").map((s: string) => s.trim()),
-            maxLeads: parseInt(inputs.maxLeads ?? "10"),
-            sources: (inputs.sources ?? "directory,web").split(",").map((s: string) => s.trim()) as ("directory" | "web" | "social" | "public_data")[],
-          };
-          break;
-        }
-        case "design": {
-          agentInput = {
-            campaignName: inputs.campaignName ?? "",
-            topic: inputs.topic ?? "",
-            targetAudience: inputs.targetAudience ?? "",
-            platforms: (inputs.platforms ?? "instagram,facebook,linkedin").split(",").map((s: string) => s.trim()) as ("instagram" | "facebook" | "linkedin" | "tiktok" | "youtube" | "website")[],
-            brandColors: (inputs.brandColors ?? "#2563EB,#16A34A").split(",").map((s: string) => s.trim()),
-            vibe: (inputs.vibe ?? "educational") as "professional" | "educational" | "emotional" | "trendy" | "minimalist",
-            includeLogos: true,
-          };
-          break;
-        }
-        case "developer": {
-          agentInput = {
-            projectType: inputs.projectType ?? "Next.js + TypeScript",
-            errorLogs: inputs.errorLogs ?? "",
-            filePaths: (inputs.filePaths ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
-            specificIssue: inputs.specificIssue ?? "",
-          };
           break;
         }
         case "sales": {

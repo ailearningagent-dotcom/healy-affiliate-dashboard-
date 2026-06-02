@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgentManager } from "@/lib/agents/agent-manager";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
 
     return NextResponse.json({ content });
   } catch (error) {
-    console.error("[Content API] Failed to load content:", error);
+    logger.error("ContentAPI", "Failed to load content", { error: String(error) });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load content library" },
       { status: 500 }

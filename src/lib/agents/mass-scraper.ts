@@ -18,6 +18,7 @@ import { logger } from "@/lib/logger";
 import { scrapeGoogleMaps } from "./google-maps-scraper";
 import { upsertLead, dbList, upsertResult } from "@/lib/db";
 import { computeLeadTemperature, type Lead, type ScrapedLead } from "./types";
+import { validateAndFilterLeads, logValidationSummary, computeScrapedLeadScore } from "./lead-validator";
 
 // ========================================================================
 // TYPES
@@ -216,6 +217,11 @@ async function runWorker(
       job.progress.totalLeadsFound += result.leadsFound;
       job.progress.completedQueries++;
 
+      // Track skip stats
+      if (result.skipped > 0) {
+        logger.info("MassScraper", `Skipped ${result.skipped} invalid leads from "${query.query}${query.location ? ` in ${query.location}` : ""}"`);
+      }
+
       if (result.errors.length > 0) {
         job.progress.failedQueries++;
         allErrors.push(...result.errors);
@@ -235,8 +241,9 @@ async function scrapeSingleQuery(
   job: MassScrapeJob,
   query: ScrapeQuery,
   allNewLeads: Lead[]
-): Promise<{ leadsFound: number; errors: string[] }> {
+): Promise<{ leadsFound: number; skipped: number; errors: string[] }> {
   const errors: string[] = [];
+  let skipped = 0;
 
   try {
     const scrapedLeads: ScrapedLead[] = await scrapeGoogleMaps({
@@ -245,8 +252,16 @@ async function scrapeSingleQuery(
       maxResults: job.maxResultsPerQuery,
     });
 
-    // Import new leads with deduplication
-    for (const sl of scrapedLeads) {
+    // === VALIDATION: Filter out invalid/incomplete leads ===
+    const { validLeads, summary } = validateAndFilterLeads(scrapedLeads);
+    skipped = summary.skippedLeads;
+
+    if (summary.skippedLeads > 0) {
+      logValidationSummary(`MassScrape "${query.query}${query.location ? ` in ${query.location}` : ""}"`, summary);
+    }
+
+    // Import validated leads with deduplication
+    for (const sl of validLeads) {
       try {
         const existing = await dbList<Lead>("leads");
         const isDuplicate = existing.some(
@@ -257,7 +272,8 @@ async function scrapeSingleQuery(
         );
 
         if (!isDuplicate) {
-          const temperature = computeLeadTemperature({ score: sl.score, status: "new" });
+          const score = sl.score || computeScrapedLeadScore(sl);
+          const temperature = computeLeadTemperature({ score, status: "new" });
           const newLead: Lead = {
             id: crypto.randomUUID(),
             name: sl.name,
@@ -270,9 +286,9 @@ async function scrapeSingleQuery(
             status: "new",
             pipelineStage: "sourced",
             temperature,
-            score: sl.score || 50,
+            score,
             personaType: sl.personaType || "customer",
-            notes: sl.notes,
+            notes: buildRicherNotes(sl),
             createdAt: new Date(),
           };
           await upsertLead(newLead);
@@ -283,13 +299,27 @@ async function scrapeSingleQuery(
       }
     }
 
-    return { leadsFound: scrapedLeads.length, errors };
+    return { leadsFound: scrapedLeads.length, skipped, errors };
   } catch (error) {
     return {
       leadsFound: 0,
+      skipped: 0,
       errors: [error instanceof Error ? error.message : String(error)],
     };
   }
+}
+
+/**
+ * Build richer notes from all available scraped data.
+ */
+function buildRicherNotes(sl: ScrapedLead): string {
+  const parts: string[] = [sl.notes];
+  if (sl.rating) parts.push(`${sl.rating}★`);
+  if (sl.reviews) parts.push(`${sl.reviews} reviews`);
+  if (sl.address) parts.push(sl.address);
+  if (sl.category) parts.push(`Category: ${sl.category}`);
+  if (sl.businessDetails) parts.push(`Details: ${sl.businessDetails}`);
+  return parts.filter(Boolean).join(" | ");
 }
 
 // ========================================================================
@@ -350,6 +380,223 @@ export const MAJOR_US_METRO_AREAS = [
   "Baltimore, MD",
   "Milwaukee, WI",
 ];
+
+// ========================================================================
+// HEALY AFFILIATE TIER-BASED TARGETING
+// ========================================================================
+
+/**
+ * TIER 1 — Highest Buying Power countries for Healy affiliate marketing.
+ * These are the priority markets: high income, high CPC, best conversion.
+ * Start here for maximum ROI.
+ */
+export const HEALY_TIER_1: string[] = [
+  "United States",
+  "Canada",
+  "United Kingdom",
+  "Germany",
+  "Switzerland",
+  "Austria",
+  "Australia",
+  "New Zealand",
+  "Netherlands",
+  "Sweden",
+];
+
+/**
+ * TIER 2 — Good Scale + Lower CPC countries.
+ * Large populations, growing wellness markets, lower ad costs.
+ * Run separate campaigns after Tier 1 is optimized.
+ */
+export const HEALY_TIER_2: string[] = [
+  "India",
+  "Singapore",
+  "Malaysia",
+  "United Arab Emirates",
+  "South Africa",
+  "Ireland",
+  "Belgium",
+  "Norway",
+];
+
+/** @deprecated Use HEALY_TIER_1 + HEALY_TIER_2 instead */
+export const HEALY_APAC_COUNTRIES = [
+  "India", "Australia", "Hong Kong", "Philippines", "Thailand",
+  "Indonesia", "Malaysia", "Singapore", "Vietnam", "Cambodia",
+  "Taiwan", "Japan", "South Korea", "New Zealand",
+];
+
+/** @deprecated Use HEALY_TIER_1 + HEALY_TIER_2 instead */
+export const HEALY_AMERICAS_COUNTRIES = [
+  "United States", "Canada", "Mexico", "Colombia", "Chile",
+  "Peru", "Ecuador", "Costa Rica", "Panama", "Guatemala",
+  "Dominican Republic", "Aruba", "Curacao", "Bonaire",
+];
+
+/** @deprecated Use HEALY_TIER_1 + HEALY_TIER_2 instead */
+export const HEALY_EUROPE_COUNTRIES = [
+  "United Kingdom", "Germany", "France", "Italy", "Spain",
+  "Netherlands", "Switzerland", "Sweden", "Norway", "Denmark",
+  "Finland", "Poland", "Portugal", "Belgium", "Austria",
+  "Ireland", "Greece", "Hungary", "Romania", "Czech Republic",
+  "Bulgaria", "Croatia", "Slovakia", "Slovenia", "Lithuania",
+  "Latvia", "Estonia", "Luxembourg", "Malta", "Cyprus",
+  "Ukraine", "Turkey", "United Arab Emirates",
+];
+
+/**
+ * ALL Healy countries combined for maximum global coverage.
+ */
+export const HEALY_ALL_COUNTRIES = [
+  ...new Set([...HEALY_TIER_1, ...HEALY_TIER_2, ...HEALY_APAC_COUNTRIES, ...HEALY_AMERICAS_COUNTRIES, ...HEALY_EUROPE_COUNTRIES]),
+];
+
+// ========================================================================
+// TARGET AUDIENCE SEGMENTS — Scrape queries for each persona
+// ========================================================================
+
+/**
+ * Best audience segments for Healy affiliate marketing.
+ * Each query targets a specific persona type for Google Maps scraping.
+ *
+ * Biohackers & wellness enthusiasts → biohacking, wellness centers, spas
+ * Holistic health followers → holistic health, alternative medicine, naturopaths
+ * Yoga & meditation practitioners → yoga studios, meditation centers
+ * Health coaches & entrepreneurs → health coaching, wellness business
+ */
+export const HEALY_AUDIENCE_QUERIES: string[] = [
+  // Biohackers & wellness enthusiasts
+  "biohacking center",
+  "wellness center",
+  "biohacking gym",
+  // Holistic health followers
+  "holistic health center",
+  "alternative medicine clinic",
+  "naturopath",
+  "functional medicine",
+  // Yoga & meditation practitioners
+  "yoga studio",
+  "meditation center",
+  "mindfulness studio",
+  // Health coaches & wellness professionals
+  "health coach",
+  "nutritionist",
+  "wellness coach",
+  // Premium wellness venues
+  "spa wellness",
+  "wellness retreat",
+  "cryotherapy",
+];
+
+/**
+ * High-intent Google Ads keywords mapped to scrape queries.
+ * These are the same keywords used for paid ads, but scraped for free
+ * to get direct leads from Google Maps listings.
+ */
+export const HEALY_KEYWORD_QUERIES: string[] = [
+  "Healy device",
+  "frequency wellness",
+  "biohacking device",
+  "energy wellness",
+  "wellness technology",
+];
+
+// ========================================================================
+// ONE-CLICK LAUNCH FUNCTIONS — Start scraping with a single call
+// ========================================================================
+
+/**
+ * 🚀 Launch Tier 1 (Highest Buying Power) — Start here.
+ *
+ * Scrapes: USA, Canada, UK, Germany, Switzerland, Austria, Australia,
+ *          New Zealand, Netherlands, Sweden
+ * Queries: All audience segments (biohacking, wellness, yoga, holistic, etc.)
+ * Result:  ~10 countries × 15 queries × 20 leads = ~3,000 leads
+ *
+ * Cost: $0 (uses local Chrome)
+ */
+export function launchTier1Strategy(): ScrapeQuery[] {
+  return generateGlobalHealyBatch(HEALY_AUDIENCE_QUERIES, HEALY_TIER_1);
+}
+
+/**
+ * 🚀 Launch Tier 2 (Good Scale + Lower CPC) — Run after Tier 1.
+ *
+ * Scrapes: India, Singapore, Malaysia, UAE, South Africa, Ireland, Belgium, Norway
+ * Queries: All audience segments
+ * Result:  ~8 countries × 15 queries × 20 leads = ~2,400 leads
+ *
+ * Cost: $0 (uses local Chrome)
+ */
+export function launchTier2Strategy(): ScrapeQuery[] {
+  return generateGlobalHealyBatch(HEALY_AUDIENCE_QUERIES, HEALY_TIER_2);
+}
+
+/**
+ * 🚀 Launch both Tier 1 + Tier 2 combined.
+ * Full global rollout.
+ */
+export function launchFullAffiliateStrategy(): ScrapeQuery[] {
+  return generateGlobalHealyBatch(HEALY_AUDIENCE_QUERIES, [...HEALY_TIER_1, ...HEALY_TIER_2]);
+}
+
+/**
+ * 🚀 Launch targeted by specific audience segment.
+ *
+ * Example: launchAudienceStrategy("biohacking")
+ *   → Scrapes "biohacking center", "biohacking gym" across Tier 1 countries
+ */
+export function launchAudienceStrategy(
+  keyword: string,
+  tiers: string[] = HEALY_TIER_1
+): ScrapeQuery[] {
+  const matchingQueries = HEALY_AUDIENCE_QUERIES.filter(
+    (q) => q.toLowerCase().includes(keyword.toLowerCase())
+  );
+  if (matchingQueries.length === 0) {
+    // Fall back to all queries if no match
+    return generateGlobalHealyBatch(HEALY_AUDIENCE_QUERIES, tiers);
+  }
+  return generateGlobalHealyBatch(matchingQueries, tiers);
+}
+
+// ========================================================================
+// GENERATE BATCH FUNCTIONS
+// ========================================================================
+
+/**
+ * Generate a full mass scrape across ALL Healy countries.
+ * queries × countries × leads = massive lead generation.
+ *
+ * Example: 4 queries × 60 countries × 20 leads = 4,800 leads total.
+ */
+export function generateGlobalHealyBatch(
+  queries: string[] = ["wellness center", "health clinic", "holistic health", "alternative medicine"],
+  countries: string[] = HEALY_ALL_COUNTRIES
+): ScrapeQuery[] {
+  const all: ScrapeQuery[] = [];
+  for (const q of queries) {
+    for (const country of countries) {
+      all.push({ query: q, location: country });
+    }
+  }
+  return all;
+}
+
+/**
+ * Generate a region-specific batch.
+ */
+export function generateRegionBatch(
+  region: "apac" | "americas" | "europe",
+  queries: string[] = ["wellness center", "health clinic"]
+): ScrapeQuery[] {
+  const countryMap: Record<string, string[]> = {
+    apac: HEALY_APAC_COUNTRIES,
+    americas: HEALY_AMERICAS_COUNTRIES,
+    europe: HEALY_EUROPE_COUNTRIES,
+  };
+  return generateGlobalHealyBatch(queries, countryMap[region] || HEALY_ALL_COUNTRIES);
+}
 
 /**
  * Generate a full mass scrape for all US metros finding wellness centers.

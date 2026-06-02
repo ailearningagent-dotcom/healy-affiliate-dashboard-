@@ -13,6 +13,7 @@ import fs from "fs";
 import path from "path";
 import type { Page, Browser } from "puppeteer-core";
 import { withRetry } from "@/lib/utils/retry";
+import { logger } from "@/lib/logger";
 
 // ========================================================================
 // STORAGE PATHS
@@ -53,9 +54,33 @@ let _browser: Browser | null = null;
 let _page: Page | null = null;
 let _keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 
-const CHROME_PATH =
-  process.env.CHROME_PATH ||
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+function getChromePath(): string {
+  if (process.env.CHROME_PATH) {
+    if (fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
+    logger.warn("WhatsApp", `CHROME_PATH set but not found: ${process.env.CHROME_PATH}`);
+  }
+  const paths: Record<string, string[]> = {
+    win32: [
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    ],
+    darwin: [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ],
+    linux: [
+      "/usr/bin/google-chrome",
+      "/usr/bin/chromium-browser",
+      "/snap/bin/chromium",
+    ],
+  };
+  const candidates = paths[process.platform] || paths.linux;
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  logger.warn("WhatsApp", "No Chrome installation found at common paths");
+  return candidates[0]; // fallback — will fail at launch with a clear error
+}
 
 async function getBrowser(): Promise<Browser> {
   if (_browser && _browser.connected) return _browser;
@@ -63,7 +88,7 @@ async function getBrowser(): Promise<Browser> {
   const puppeteer = await import("puppeteer-core");
   _browser = await puppeteer.launch({
     headless: false, // Must be visible for QR scan
-    executablePath: CHROME_PATH,
+    executablePath: getChromePath(),
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -101,7 +126,7 @@ async function saveSession(page: Page): Promise<void> {
     fs.writeFileSync(SESSION_FILE, JSON.stringify({ cookies, savedAt: new Date().toISOString() }));
     fs.writeFileSync(STORAGE_FILE, JSON.stringify({ storageData, savedAt: new Date().toISOString() }));
   } catch (e) {
-    console.error("[WhatsApp] Failed to save session:", e);
+    logger.error("WhatsApp", "Failed to save session", { error: String(e) });
   }
 }
 
@@ -268,7 +293,7 @@ function startKeepAlive(page: Page): void {
       });
 
       if (!connected) {
-        console.log("[WhatsApp] Connection lost, reconnecting...");
+        logger.warn("WhatsApp", "Connection lost, reconnecting...");
         _state = { ..._state, status: "disconnected" };
         stopKeepAlive();
         // Try to reconnect
@@ -276,9 +301,10 @@ function startKeepAlive(page: Page): void {
         await page.reload({ waitUntil: "domcontentloaded" });
         await monitorConnection(page);
       }      } catch (e) {
-        _state = { ..._state, status: "error", error: "Keep-alive failed" };
-      stopKeepAlive();
-    }
+    logger.error("WhatsApp", "Keep-alive failed", { error: String(e) });
+    _state = { ..._state, status: "error", error: "Keep-alive failed" };
+    stopKeepAlive();
+  }
   }, 30000); // Check every 30 seconds
 }
 
@@ -408,7 +434,7 @@ export async function sendWhatsAppMessageWithRetry(
     maxRetries: 2,
     baseDelay: 2000,
     timeout: 30000,
-    logger: (msg) => console.warn(`[WhatsApp Retry] ${msg}`),
+    logger: (msg) => logger.warn("WhatsApp", msg),
   });
 }
 

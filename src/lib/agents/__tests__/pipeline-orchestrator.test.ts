@@ -34,6 +34,12 @@ vi.mock("@/lib/business-profile", () => ({
   }),
 }));
 
+// Import default-config module to verify env-affected defaults
+vi.mock("@/lib/agents/default-config", () => ({
+  getDefaultProvider: () => "gemini",
+  getDefaultModel: (role: string) => role === "flash" ? "gemini-2.0-flash" : "gemini-2.0-flash-lite",
+}));
+
 describe("PipelineOrchestrator", () => {
   let orchestrator: ReturnType<typeof getPipelineOrchestrator>;
 
@@ -102,9 +108,7 @@ describe("PipelineOrchestrator", () => {
     });
 
     it("skips tick if already running", async () => {
-      // First call starts running
       const firstPromise = orchestrator.tick();
-      // Second call should be skipped
       const secondPromise = orchestrator.tick();
       const [first, second] = await Promise.all([firstPromise, secondPromise]);
       expect(first.phase).toBe("complete");
@@ -114,9 +118,7 @@ describe("PipelineOrchestrator", () => {
 
   describe("checkAndRun", () => {
     it("does nothing when pipeline is not enabled", async () => {
-      // Pipeline is disabled by default
       await orchestrator.checkAndRun();
-      // Should not throw — no-op when disabled
     });
   });
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAgentManager } from "@/lib/agents/agent-manager";
 import type { AgentType } from "@/lib/agents/types";
 
-const VALID_AGENT_TYPES = ["content", "research", "outreach", "ceo", "cfo", "analyst", "design", "sales", "developer", "scraper"] as const;
+const VALID_AGENT_TYPES = ["content", "research", "outreach", "sales", "scraper"] as const;
 
 const runAgentSchema = z.object({
   agentType: z.enum(VALID_AGENT_TYPES, `Invalid agent type. Must be one of: ${VALID_AGENT_TYPES.join(", ")}`),

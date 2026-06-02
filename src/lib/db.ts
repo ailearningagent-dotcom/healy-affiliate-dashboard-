@@ -1,16 +1,29 @@
 import path from "path";
 import fs from "fs";
 import { createClient as createTursoClient, type InArgs } from "@libsql/client";
+import { logger } from "@/lib/logger";
 import type {
   AgentResult,
   Lead,
   Appointment,
   ContentResult,
-  DepartmentReport,
   Client,
 } from "@/lib/agents/types";
 
 // ============ DB CONNECTION ============
+
+/** Whitelist of allowed table names to prevent SQL injection */
+const ALLOWED_TABLES = new Set([
+  "agent_results", "leads", "appointments", "content_library",
+  "department_reports", "settings", "nurture_sequences",
+  "nurture_steps", "clients",
+]);
+
+function validateTableName(table: string): void {
+  if (!ALLOWED_TABLES.has(table)) {
+    throw new Error(`Invalid table name: ${table}`);
+  }
+}
 
 function getUrl(): string {
   return process.env.DATABASE_URL ?? "file:./data/marketai.db";
@@ -22,6 +35,9 @@ function getAuthToken(): string | undefined {
 
 let _client: ReturnType<typeof createTursoClient> | null = null;
 let _migrated: Promise<void> | null = null;
+
+/** Track migration failures to allow retry */
+let _migrationFailed = false;
 
 async function migrate(client: ReturnType<typeof createTursoClient>): Promise<void> {
   await client.execute({
@@ -114,23 +130,6 @@ async function migrate(client: ReturnType<typeof createTursoClient>): Promise<vo
   });
 
   await client.execute({
-    sql: `CREATE TABLE IF NOT EXISTS bookings (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      phone TEXT NOT NULL DEFAULT '',
-      date_time TEXT NOT NULL,
-      duration INTEGER NOT NULL DEFAULT 30,
-      status TEXT NOT NULL DEFAULT 'confirmed',
-      google_event_id TEXT,
-      notes TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`,
-    args: [],
-  });
-
-  await client.execute({
     sql: `CREATE TABLE IF NOT EXISTS nurture_sequences (
       id TEXT PRIMARY KEY,
       lead_id TEXT NOT NULL,
@@ -186,9 +185,6 @@ async function migrate(client: ReturnType<typeof createTursoClient>): Promise<vo
     await client.execute({ sql: `ALTER TABLE appointments ADD COLUMN client_id TEXT NOT NULL DEFAULT 'default'`, args: [] });
   } catch {}
   try {
-    await client.execute({ sql: `ALTER TABLE bookings ADD COLUMN client_id TEXT NOT NULL DEFAULT 'default'`, args: [] });
-  } catch {}
-  try {
     await client.execute({ sql: `ALTER TABLE settings ADD COLUMN client_id TEXT NOT NULL DEFAULT 'default'`, args: [] });
   } catch {}
   try {
@@ -198,6 +194,17 @@ async function migrate(client: ReturnType<typeof createTursoClient>): Promise<vo
   // Add temperature column to leads for cold/warm/hot classification
   try {
     await client.execute({ sql: `ALTER TABLE leads ADD COLUMN temperature TEXT DEFAULT 'cold'`, args: [] });
+  } catch {}
+
+  // Add country/region/language columns for international targeting
+  try {
+    await client.execute({ sql: `ALTER TABLE leads ADD COLUMN country TEXT DEFAULT ''`, args: [] });
+  } catch {}
+  try {
+    await client.execute({ sql: `ALTER TABLE leads ADD COLUMN region TEXT DEFAULT ''`, args: [] });
+  } catch {}
+  try {
+    await client.execute({ sql: `ALTER TABLE leads ADD COLUMN language TEXT DEFAULT ''`, args: [] });
   } catch {}
 
   // Seed default client if none exists
@@ -234,7 +241,11 @@ function getDbClient() {
     });
 
     _migrated = migrate(_client).catch((err) => {
-      console.error("Migration failed:", err);
+      logger.error("db", "Migration failed", { error: String(err) });
+      _migrationFailed = true;
+      // Reset so next call retries migration
+      _migrated = null;
+      _client = null;
     });
   }
   return _client;
@@ -242,6 +253,12 @@ function getDbClient() {
 
 /** Ensure migrations have completed before running any query */
 async function ensureMigrated(): Promise<void> {
+  if (_migrationFailed) {
+    // If migration previously failed, force re-initialization
+    _migrated = null;
+    _client = null;
+    _migrationFailed = false;
+  }
   if (_migrated) {
     await _migrated;
   }
@@ -251,6 +268,7 @@ async function ensureMigrated(): Promise<void> {
 
 export async function dbGet<T>(table: string, id: string): Promise<T | null> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   const result = await client.execute({
     sql: `SELECT * FROM ${table} WHERE id = ?`,
@@ -271,6 +289,7 @@ function sanitizeOrderBy(orderBy: string): string {
 
 export async function dbList<T>(table: string, orderBy = "created_at DESC"): Promise<T[]> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   const safeOrderBy = sanitizeOrderBy(orderBy);
   const result = await client.execute({
@@ -282,6 +301,7 @@ export async function dbList<T>(table: string, orderBy = "created_at DESC"): Pro
 
 export async function dbInsert<T>(table: string, id: string, data: Record<string, unknown>): Promise<T> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   const keys = Object.keys(data);
   const values = Object.values(data);
@@ -295,6 +315,7 @@ export async function dbInsert<T>(table: string, id: string, data: Record<string
 
 export async function dbUpdate<T>(table: string, id: string, updates: Record<string, unknown>): Promise<T | null> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   const existing = await dbGet<Record<string, unknown>>(table, id);
   if (!existing) return null;
@@ -309,6 +330,7 @@ export async function dbUpdate<T>(table: string, id: string, updates: Record<str
 
 export async function dbDelete(table: string, id: string): Promise<void> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   await client.execute({
     sql: `DELETE FROM ${table} WHERE id = ?`,
@@ -318,6 +340,7 @@ export async function dbDelete(table: string, id: string): Promise<void> {
 
 export async function dbCount(table: string, where = "1=1"): Promise<number> {
   await ensureMigrated();
+  validateTableName(table);
   const client = getDbClient();
   const result = await client.execute({
     sql: `SELECT COUNT(*) as count FROM ${table} WHERE ${where}`,
@@ -391,6 +414,9 @@ export async function upsertLead(lead: Lead): Promise<Lead> {
     created_at: lead.createdAt?.toISOString() ?? new Date().toISOString(),
     last_contacted_at: lead.lastContactedAt?.toISOString() ?? null,
     next_follow_up: lead.nextFollowUp?.toISOString() ?? null,
+    country: lead.country ?? '',
+    region: lead.region ?? '',
+    language: lead.language ?? '',
   });
 }
 
@@ -597,7 +623,7 @@ export async function seedIfEmpty(): Promise<void> {
   }
 }
 
-export async function getDepartmentReports(): Promise<DepartmentReport[]> {
+export async function getDepartmentReports(): Promise<Array<{ department: string; status: string; activeTasks: number; completedToday: number; performance: number; issues: string[]; lastActivity: Date; metrics: Record<string, unknown> }>> {
   await ensureMigrated();
   const client = getDbClient();
   const result = await client.execute({
@@ -608,14 +634,14 @@ export async function getDepartmentReports(): Promise<DepartmentReport[]> {
     const row = r as Record<string, unknown>;
     return {
       department: row.department as string,
-      status: row.status as DepartmentReport["status"],
+      status: row.status as string,
       activeTasks: row.active_tasks as number,
       completedToday: row.completed_today as number,
       performance: row.performance as number,
       issues: (() => { try { return JSON.parse(row.issues as string); } catch { return []; } })(),
       lastActivity: new Date(row.last_activity as string),
       metrics: (() => { try { return JSON.parse(row.metrics as string); } catch { return {}; } })(),
-    } as DepartmentReport;
+    };
   });
 }
 
@@ -806,21 +832,10 @@ export async function getClientAppointments(clientId: string): Promise<Appointme
   return result.rows.map((r) => hydrateRow<Appointment>("appointments", r as Record<string, unknown>));
 }
 
-export async function getClientBookings(clientId: string): Promise<Record<string, unknown>[]> {
-  await ensureMigrated();
-  const client = getDbClient();
-  const result = await client.execute({
-    sql: "SELECT * FROM bookings WHERE client_id = ? ORDER BY created_at DESC",
-    args: [clientId],
-  });
-  return result.rows as Record<string, unknown>[];
-}
-
 export async function getClientMetrics(clientId: string): Promise<{
   totalLeads: number;
   appointmentsScheduled: number;
   appointmentsCompleted: number;
-  totalBookings: number;
 }> {
   await ensureMigrated();
   const client = getDbClient();
@@ -837,16 +852,10 @@ export async function getClientMetrics(clientId: string): Promise<{
     sql: "SELECT COUNT(*) as count FROM appointments WHERE client_id = ? AND status = 'completed'",
     args: [clientId],
   });
-  const bookingsCount = await client.execute({
-    sql: "SELECT COUNT(*) as count FROM bookings WHERE client_id = ?",
-    args: [clientId],
-  });
-  
   return {
     totalLeads: Number((leadCount.rows[0] as Record<string, unknown>).count ?? 0),
     appointmentsScheduled: Number((apptScheduled.rows[0] as Record<string, unknown>).count ?? 0),
     appointmentsCompleted: Number((apptCompleted.rows[0] as Record<string, unknown>).count ?? 0),
-    totalBookings: Number((bookingsCount.rows[0] as Record<string, unknown>).count ?? 0),
   };
 }
 
@@ -1008,6 +1017,19 @@ export async function deleteSequence(id: string): Promise<void> {
   const client = getDbClient();
   await client.execute({ sql: "DELETE FROM nurture_steps WHERE sequence_id = ?", args: [id] });
   await client.execute({ sql: "DELETE FROM nurture_sequences WHERE id = ?", args: [id] });
+}
+
+// ============ CLEAR DATA ============
+
+export async function clearAllData(): Promise<void> {
+  await ensureMigrated();
+  const client = getDbClient();
+  // Delete in dependency-safe order (child tables first, then parents)
+  await client.execute({ sql: "DELETE FROM nurture_steps", args: [] });
+  await client.execute({ sql: "DELETE FROM nurture_sequences", args: [] });
+  await client.execute({ sql: "DELETE FROM appointments", args: [] });
+  await client.execute({ sql: "DELETE FROM agent_results", args: [] });
+  await client.execute({ sql: "DELETE FROM leads", args: [] });
 }
 
 export async function countActiveSequences(): Promise<number> {

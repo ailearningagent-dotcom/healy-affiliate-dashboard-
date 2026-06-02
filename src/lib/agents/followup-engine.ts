@@ -21,6 +21,9 @@ import { callLLM } from "@/lib/llm/call-llm";
 import { getSetting, setSetting, dbList, upsertLead, upsertResult } from "@/lib/db";
 import { getDefaultProvider, getDefaultModel } from "./default-config";
 import { getDefaultBusinessProfile, type Lead, type NurtureSequence, type NurtureStep, type BusinessProfile } from "./types";
+import { injectLeadData } from "./email-personalizer";
+import { getCountryByCode, isWithinBusinessHours, getChannelOrderForCountry } from "./countries";
+import type { CountryInfo } from "./countries";
 
 // ========================================================================
 // CONFIGURATION
@@ -49,8 +52,9 @@ const DEFAULT_CONFIG: FollowupConfig = {
   personalizeMessages: false, // Off by default for $0 cost
   preferredModel: getDefaultModel("flash-lite"),
   preferredProvider: getDefaultProvider(),
-  bookingLink: "",
+  bookingLink: "https://www.healycommunity.com",
 };
+
 
 // ========================================================================
 // FOLLOW-UP RESULT
@@ -152,6 +156,18 @@ export class FollowupEngine {
         const lead = leads.find((l) => l.id === seq.leadId);
         if (!lead) continue;
 
+        // Skip email steps if no email provider is configured
+        // This prevents phantom "sent" follow-ups that never actually deliver
+        if (step.type === "email") {
+          const emailConfigured = await this.isEmailConfigured();
+          if (!emailConfigured) {
+            logger.warn("Followup", `Skipping email step ${step.stepNumber} for ${lead.name || seq.leadId} — no email provider configured`);
+            // Skip to the next step without marking as sent
+            await this.engine.advanceSequence(seq.id);
+            continue;
+          }
+        }
+
         // Send the follow-up on the appropriate channel
         const result = await this.sendFollowUp(seq, step, lead, config);
         results.push(result);
@@ -184,7 +200,8 @@ export class FollowupEngine {
 
   /**
    * Send a single follow-up step on the best available channel.
-   * Falls back through channels: email → whatsapp → sms → phone
+   * Priority: WhatsApp first (mandatory), then email as fallback.
+   * If both fail, the step is tracked but the sequence still advances.
    */
   private async sendFollowUp(
     seq: NurtureSequence,
@@ -192,21 +209,32 @@ export class FollowupEngine {
     lead: Lead,
     config: FollowupConfig
   ): Promise<FollowupResult> {
-    const channels = this.getChannelsForStep(step, config);
+    // Use country-aware channel ordering when lead has country info, otherwise use default
+    const channels = lead.country ? this.getChannelsForLead(lead, config) : this.getChannelsForStep(step, config);
 
     for (const channel of channels) {
       switch (channel) {
+        case "whatsapp":
+          // WhatsApp is ALWAYS tried first when phone is available
+          if (lead.phone && config.whatsappEnabled) {
+            const result = await this.sendWhatsAppFollowUp(seq, lead, step, config);
+            if (result && result.success) {
+              logger.info("Followup", `WhatsApp sent to ${lead.name} for step ${step.stepNumber}`);
+              return result;
+            }
+            // WhatsApp failed — log it, but continue to try email
+            logger.warn("Followup", `WhatsApp failed for ${lead.name} (${result?.error || "unknown"}), trying email`);
+          }
+          // Fall through to email
+
         case "email":
           if (lead.email && config.emailEnabled) {
             const result = await this.sendEmailFollowUp(lead, step, config, seq);
-            if (result.success) return result;
-          }
-          break;
-
-        case "whatsapp":
-          if (lead.phone && config.whatsappEnabled) {
-            const result = await this.sendWhatsAppFollowUp(seq, lead, step, config);
-            if (result.success) return result;
+            if (result.success) {
+              logger.info("Followup", `Email sent to ${lead.name} for step ${step.stepNumber}`);
+              return result;
+            }
+            logger.warn("Followup", `Email also failed for ${lead.name} (${result.error})`);
           }
           break;
 
@@ -225,31 +253,55 @@ export class FollowupEngine {
       }
     }
 
-    // All channels failed or not available
-    return this.createResult(seq, lead, step, step.type, false, "No channel available", 0);
+    // No working channel available (no email and no phone) — skip and still advance the sequence
+    logger.warn("Followup", `No channel available for ${lead.name} (no email or phone) step ${step.stepNumber} — skipping`);
+    return this.createResult(seq, lead, step, step.type, true, "No channel available - skipped", 0);
   }
 
   /**
    * Get the ordered list of channels to try for a step.
-   * Respects both the step's preferred type and which channels are enabled.
+   * Uses country-aware channel ordering:
+   *   - APAC/LATAM: WhatsApp first (mandatory), then email
+   *   - EU/NA: Email first, then WhatsApp
+   *
+   * This reflects both mandatory WhatsApp followup AND
+   * country-specific communication preferences.
    */
   private getChannelsForStep(step: NurtureStep, config: FollowupConfig): string[] {
-    const preferred = step.type;
-    const allChannels: string[] = [];
+    // If we have a lead context, use country-aware ordering
+    // Default: WhatsApp first (mandatory), email fallback
+    const channels: string[] = [];
 
-    // Put the preferred channel first
-    if (config.emailEnabled) allChannels.push("email");
-    if (config.whatsappEnabled) allChannels.push("whatsapp");
-
-    // Reorder so preferred is first
-    const ordered = [...allChannels];
-    const preferredIdx = ordered.indexOf(preferred);
-    if (preferredIdx > 0) {
-      ordered.splice(preferredIdx, 1);
-      ordered.unshift(preferred);
+    // WhatsApp is always available in the channel list
+    if (config.whatsappEnabled) {
+      channels.push("whatsapp");
     }
 
-    return ordered;
+    // Email is the primary fallback
+    if (config.emailEnabled) {
+      channels.push("email");
+    }
+
+    return channels;
+  }
+
+  /**
+   * Get country-aware channel order for a specific lead.
+   * Used in sendFollowUp to dynamically order channels based on lead's country.
+   *   APAC/LATAM (whatsapp channelPreference): WhatsApp first, email second
+   *   EU/NA (email channelPreference): Email first, WhatsApp second
+   */
+  private getChannelsForLead(lead: Lead, config: FollowupConfig): string[] {
+    // Detect country from lead data
+    const countryInfo = lead.country ? getCountryByCode(lead.country) : undefined;
+    const order = getChannelOrderForCountry(countryInfo);
+    
+    // Filter to only enabled channels
+    return order.filter((ch) => {
+      if (ch === "whatsapp") return config.whatsappEnabled;
+      if (ch === "email") return config.emailEnabled;
+      return true;
+    });
   }
 
   // ========================================================================
@@ -262,8 +314,8 @@ export class FollowupEngine {
     config: FollowupConfig,
     seq: NurtureSequence
   ): Promise<FollowupResult> {
-    // Optionally personalize the template with LLM
-    let template = step.template;
+    // Inject scraped business data into template, then optionally personalize with LLM
+    let template = injectLeadData(step.template, lead);
     let cost = 0;
 
     if (config.personalizeMessages) {
@@ -287,11 +339,11 @@ export class FollowupEngine {
       }
     }
 
-    const bookingLink = config.bookingLink || (typeof window !== "undefined" ? `${window.location.origin}/book` : "/book");
+    const bookingLink = config.bookingLink || "https://www.healycommunity.com";
     const email = buildNurtureEmail({
       leadName: lead.name,
       step: { subject: step.subject, template },
-      businessName: (await this._getBusinessProfile()).businessName,
+      businessName: "Wellness Advisor", // Anonymous until booking
       bookingLink,
     });
 
@@ -320,14 +372,21 @@ export class FollowupEngine {
     lead: Lead,
     step: NurtureStep,
     config: FollowupConfig
-  ): Promise<FollowupResult> {
+  ): Promise<FollowupResult | null> {
     const connected = await isWhatsAppConnected();
-    if (!connected) {
-      return this.createResult(seq, lead, step, "whatsapp", false, "WhatsApp not connected. Scan QR code in Settings.", 0);
+    if (!connected || !lead.phone) {
+      return null; // silently skip — pipeline works email-only
     }
 
-    // Use the template as the message
-    let message = step.template;
+    // Check if within business hours for the lead's country
+    const countryInfo = lead.country ? getCountryByCode(lead.country) : undefined;
+    if (countryInfo && !isWithinBusinessHours(countryInfo)) {
+      // Outside business hours — still send but log note
+      logger.info("Followup", `Sending WhatsApp to ${lead.name} in ${countryInfo.name} — outside business hours (UTC: ${new Date().getUTCHours()})`);
+    }
+
+    // Inject scraped business data into WhatsApp message
+    let message = injectLeadData(step.template, lead);
     let cost = 0;
 
     if (config.personalizeMessages) {
@@ -348,9 +407,9 @@ export class FollowupEngine {
     }
 
     // Add booking link if available
-    const bookingLink = config.bookingLink || "/book";
+    const bookingLink = config.bookingLink || "https://www.healycommunity.com";
     if (!message.includes(bookingLink) && message.length < 400) {
-      message += `\n\nBook a consultation: ${bookingLink}`;
+      message += `\n\nBook a free consultation: ${bookingLink}`;
     }
 
     const result = await sendWhatsAppMessage(lead.phone || "", message);
@@ -364,6 +423,33 @@ export class FollowupEngine {
   // ========================================================================
   // UTILITY METHODS
   // ========================================================================
+
+  /**
+   * Check if the email provider is actually configured to send.
+   * This prevents phantom "sent" follow-ups when no email provider is set up.
+   */
+  private async isEmailConfigured(): Promise<boolean> {
+    const config = await this.getConfig();
+    if (!config.emailEnabled) return false;
+
+    // Check that at least one email credential is set
+    const [provider, gmailUser, gmailPass, resendKey, sendgridKey] = await Promise.all([
+      getSetting("email_provider"),
+      getSetting("email_gmail_user"),
+      getSetting("email_gmail_app_password"),
+      getSetting("email_resend_api_key"),
+      getSetting("email_sendgrid_api_key"),
+    ]);
+
+    if (provider === "gmail_smtp" || !provider) {
+      return !!(gmailUser || process.env.EMAIL_GMAIL_USER) &&
+             !!(gmailPass || process.env.EMAIL_GMAIL_APP_PASSWORD);
+    }
+    if (provider === "resend") return !!(resendKey || process.env.RESEND_API_KEY);
+    if (provider === "sendgrid") return !!(sendgridKey || process.env.SENDGRID_API_KEY);
+
+    return false;
+  }
 
   /**
    * Check if a step is due based on delay from the sequence start

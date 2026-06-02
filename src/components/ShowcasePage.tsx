@@ -42,7 +42,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "@/lib/theme-context";
-import InteractiveAgentDemo from "@/components/InteractiveAgentDemo";
+import Link from "next/link";
+
 
 // ============ TYPES ============
 
@@ -604,73 +605,6 @@ function LeadsPreview() {
   );
 }
 
-// ============ BOOKING PREVIEW ============
-
-function BookingPreview() {
-  return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      {/* Brand Side */}
-      <div className="rounded-xl bg-gradient-to-br from-primary-900 via-primary-800 to-primary-950 p-6 text-white">
-        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-          <Calendar className="h-6 w-6" />
-        </div>
-        <h3 className="text-2xl font-bold">Let&apos;s find a time</h3>
-        <p className="mt-2 text-sm text-white/70">Book a discovery call to discuss your goals and how we can help.</p>
-        <div className="mt-6 space-y-2.5">
-          {["Free 30-minute consultation", "Google Meet link included", "No commitment required"].map((item) => (
-            <div key={item} className="flex items-center gap-2.5">
-              <CheckCircle2 className="h-4 w-4 text-accent-400" />
-              <span className="text-sm text-white/80">{item}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Booking Widget */}
-      <div className="rounded-xl border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-800">
-        <h4 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-4">Select a Date & Time</h4>
-        <div className="grid grid-cols-7 gap-1 mb-4">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-            <div key={d} className="text-center text-[10px] font-medium text-surface-400 py-1">{d}</div>
-          ))}
-          {Array.from({ length: 31 }, (_, i) => {
-            const day = i + 1;
-            const isToday = day === 15;
-            const isPast = day < 14;
-            return (
-              <button
-                key={day}
-                disabled={isPast}
-                className={clsx(
-                  "rounded-lg py-1.5 text-xs font-medium transition-all",
-                  isToday ? "bg-primary-600 text-white" :
-                  isPast ? "text-surface-300 dark:text-surface-600 cursor-not-allowed" :
-                  "text-surface-700 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-700"
-                )}
-              >
-                {day}
-              </button>
-            );
-          })}
-        </div>
-        <div className="space-y-1.5">
-          {["9:00 AM", "10:00 AM", "11:00 AM", "1:00 PM", "2:00 PM", "3:00 PM"].map((t) => (
-            <button
-              key={t}
-              className="w-full rounded-lg border border-surface-200 px-3 py-2 text-xs font-medium text-surface-700 hover:border-primary-300 hover:bg-primary-50 transition-all dark:border-surface-600 dark:text-surface-300 dark:hover:border-primary-600 dark:hover:bg-primary-900/20"
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <button className="mt-4 w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 transition-all">
-          Confirm Booking
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ============ ADMIN PREVIEW ============
 
 function AdminPreview() {
@@ -739,9 +673,6 @@ function AdminPreview() {
           </div>
         </div>
         <div className="mt-4 flex gap-2">
-          <button className="flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-xs font-medium text-surface-600 hover:bg-surface-50 dark:border-surface-600 dark:text-surface-400 dark:hover:bg-surface-700">
-            <Eye className="h-3.5 w-3.5" /> View Booking Page
-          </button>
           <button className="flex items-center gap-1.5 rounded-lg border border-surface-200 px-3 py-2 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:border-surface-600 dark:text-primary-400 dark:hover:bg-primary-900/20">
             <BarChart3 className="h-3.5 w-3.5" /> Dashboard
           </button>
@@ -809,40 +740,6 @@ function SettingsPreview() {
                 </div>
               </div>
 
-              {/* Calendar */}
-              <div className="lg:col-span-2 rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-800">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                      <Calendar className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-surface-900 dark:text-surface-100">Google Calendar</h4>
-                      <p className="text-xs text-surface-400">Connected as admin@marketai.com</p>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Connected
-                  </span>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div>
-                    <label htmlFor="demo-start-time" className="block text-xs text-surface-500 mb-1">Start Time</label>
-                    <input id="demo-start-time" type="time" value="09:00" readOnly className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-500 dark:border-surface-600 dark:bg-surface-700" />
-                  </div>
-                  <div>
-                    <label htmlFor="demo-end-time" className="block text-xs text-surface-500 mb-1">End Time</label>
-                    <input id="demo-end-time" type="time" value="17:00" readOnly className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-500 dark:border-surface-600 dark:bg-surface-700" />
-                  </div>
-                  <div>
-                    <label htmlFor="demo-meeting-duration" className="block text-xs text-surface-500 mb-1">Meeting Duration</label>
-                    <select id="demo-meeting-duration" className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-500 dark:border-surface-600 dark:bg-surface-700">
-                      <option>30 minutes</option>
-                    </select>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1258,7 +1155,10 @@ export default function ShowcasePage() {
     },
     {
       id: "agents-feature", title: "10 AI Agent Types", description: "Specialized autonomous agents: Content, Research, Outreach, CEO, CFO, Analyst, Design, Developer, Sales, Scraper — each with structured input forms.", icon: Bot, color: "text-violet-600", bg: "bg-violet-50", gradient: "from-violet-500 to-purple-600",
-      preview: <InteractiveAgentDemo />,
+      preview: <div className="rounded-xl border border-dashed border-surface-200 dark:border-surface-700 p-8 text-center">
+            <Bot className="mx-auto h-8 w-8 text-surface-300 dark:text-surface-600 mb-3" />
+            <p className="text-sm text-surface-400">Interactive agent playground replaced with 90-day automated Healy email sequences.<br />Visit the <Link href="/leads" className="text-primary-600 font-medium hover:underline">Leads page</Link> to manage the email sequence system.</p>
+          </div>,
       details: [{ label: "Agents", value: "10" }, { label: "Sub-Agents", value: "20+" }],
     },
     {
@@ -1272,17 +1172,12 @@ export default function ShowcasePage() {
       details: [{ label: "Statuses", value: "6" }, { label: "Export", value: "CSV/XLSX" }],
     },
     {
-      id: "booking-feature", title: "Booking Page", description: "Public-facing booking page with calendar widget, date/time selection, Google Meet integration, and trust signals.", icon: Calendar, color: "text-emerald-600", bg: "bg-emerald-50", gradient: "from-emerald-500 to-teal-600",
-      preview: <BookingPreview />,
-      details: [{ label: "Slots", value: "Auto" }, { label: "Duration", value: "Custom" }],
-    },
-    {
       id: "admin-feature", title: "Multi-Tenant Admin", description: "Client workspace management with CRUD, per-client dashboards, metrics, branding colors, booking slugs, and status toggles.", icon: Shield, color: "text-purple-600", bg: "bg-purple-50", gradient: "from-purple-500 to-violet-600",
       preview: <AdminPreview />,
       details: [{ label: "Tenants", value: "Multi" }, { label: "Metrics", value: "Real-time" }],
     },
     {
-      id: "settings-feature", title: "Settings & Integration", description: "Multi-provider LLM configuration (OpenAI, Gemini, Claude, OpenRouter), business profile, Google Calendar OAuth, and availability settings.", icon: Settings, color: "text-slate-600", bg: "bg-slate-50", gradient: "from-slate-500 to-slate-600",
+      id: "settings-feature", title: "Settings & Integration", description: "Multi-provider LLM configuration (OpenAI, Gemini, Claude, OpenRouter), business profile, and availability settings.", icon: Settings, color: "text-slate-600", bg: "bg-slate-50", gradient: "from-slate-500 to-slate-600",
       preview: <SettingsPreview />,
       details: [{ label: "Providers", value: "4" }, { label: "Integrations", value: "3" }],
     },

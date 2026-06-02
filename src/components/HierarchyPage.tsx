@@ -2,17 +2,10 @@
 
 import { useState, useRef, useCallback } from "react";
 import {
-  Crown,
-  DollarSign,
-  BarChart3,
-  Palette,
   TrendingUp,
-  Code2,
   Loader2,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
-  Activity,
   Users,
   Target,
   Clock,
@@ -22,16 +15,9 @@ import {
   FileText,
   Search,
   Mail,
-  Image,
-  Zap,
-  Brain,
-  Shield,
-  Layers,
   ArrowRight,
-  Bug,
-  GitBranch,
-  Package,
-  HeartPulse,
+  Globe,
+  Sparkles,
 } from "lucide-react";
 import type { AgentType, AgentStatus } from "@/lib/agents/types";
 import clsx from "clsx";
@@ -63,265 +49,92 @@ interface DepartmentInfo {
 
 const DEPARTMENTS: DepartmentInfo[] = [
   {
-    type: "ceo",
-    name: "CEO",
-    title: "Chief Executive Officer",
-    description: "Strategic orchestrator — sets goals, prioritizes tasks, and coordinates all departments for maximum impact",
-    icon: Crown,
-    gradient: "from-purple-500 to-violet-600",
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    borderColor: "border-purple-200",
-    stats: [
-      { label: "Active Strategies", value: "2", icon: Brain, color: "text-purple-600" },
-      { label: "Departments", value: "5", icon: Users, color: "text-purple-600" },
-      { label: "Tasks This Week", value: "12", icon: Target, color: "text-purple-600" },
-    ],
-    subAgents: [
-      {
-        id: "task-prioritizer", name: "Task Prioritizer", description: "Breaks goals into action items for each department",
-        icon: Target, color: "text-purple-600",
-        inputs: [
-          { label: "Business Goal", key: "goal", type: "text" },
-          { label: "Timeframe", key: "timeframe", type: "select", options: ["This Week", "This Month", "This Quarter", "This Year"] },
-          { label: "Target Outcome", key: "targetOutcome", type: "text" },
-          { label: "Priority", key: "priority", type: "select", options: ["critical", "high", "medium", "low"] },
-          { label: "Budget (optional)", key: "budget", type: "text" },
-        ],
-      },
-      {
-        id: "department-coordinator", name: "Dept. Coordinator", description: "Coordinates cross-department efforts and resolves bottlenecks",
-        icon: Layers, color: "text-purple-600",
-        inputs: [
-          { label: "Goal / Initiative", key: "goal", type: "text" },
-          { label: "Departments Involved", key: "timeframe", type: "text" },
-          { label: "Key Dependencies", key: "targetOutcome", type: "text" },
-          { label: "Priority", key: "priority", type: "select", options: ["critical", "high", "medium", "low"] },
-        ],
-      },
-      {
-        id: "performance-reviewer", name: "Performance Reviewer", description: "Reviews KPIs and recommends strategic adjustments",
-        icon: Activity, color: "text-purple-600",
-        inputs: [
-          { label: "Review Period", key: "timeframe", type: "select", options: ["This Week", "This Month", "This Quarter"] },
-          { label: "Focus Area", key: "goal", type: "text" },
-          { label: "Current Concerns", key: "targetOutcome", type: "text" },
-          { label: "Priority", key: "priority", type: "select", options: ["critical", "high", "medium", "low"] },
-        ],
-      },
-    ],
-  },
-  {
-    type: "cfo",
-    name: "CFO",
-    title: "Chief Financial Officer",
-    description: "Financial oversight — budget planning, ROI analysis, and cost per lead optimization",
-    icon: DollarSign,
+    type: "content",
+    name: "Content",
+    title: "AI Content Creator",
+    description: "Create blog posts, social content, nurture emails, and landing pages for your business",
+    icon: FileText,
     gradient: "from-emerald-500 to-teal-600",
     color: "text-emerald-600",
     bg: "bg-emerald-50",
     borderColor: "border-emerald-200",
     stats: [
-      { label: "Budget Used", value: "67%", icon: DollarSign, color: "text-emerald-600" },
-      { label: "Avg. CPL", value: "$8.50", icon: Target, color: "text-emerald-600" },
-      { label: "ROI Proj.", value: "340%", icon: TrendingUp, color: "text-emerald-600" },
+      { label: "Content Types", value: "5", icon: FileText, color: "text-emerald-600" },
+      { label: "Active", value: "Yes", icon: Target, color: "text-emerald-600" },
+      { label: "Auto-Pilot", value: "On", icon: Sparkles, color: "text-emerald-600" },
     ],
     subAgents: [
       {
-        id: "budget-planner", name: "Budget Planner", description: "Allocates campaign budgets across channels",
-        icon: DollarSign, color: "text-emerald-600",
+        id: "blog-writer", name: "Blog Writer", description: "Creates educational blog posts about frequency wellness",
+        icon: FileText, color: "text-emerald-600",
         inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Total Budget ($)", key: "budget", type: "text" },
-          { label: "Projected Leads", key: "projectedLeads", type: "text" },
-          { label: "Projected Appointments", key: "projectedAppointments", type: "text" },
-          { label: "Duration (days)", key: "durationDays", type: "text" },
-          { label: "Channels (comma separated)", key: "channels", type: "text" },
+          { label: "Topic", key: "topic", type: "text" },
+          { label: "Target Audience", key: "targetAudience", type: "text" },
+          { label: "Key Points", key: "keyPoints", type: "textarea" },
+          { label: "Tone", key: "tone", type: "select", options: ["Educational", "Inspirational", "Scientific", "Conversational"] },
         ],
       },
       {
-        id: "roi-analyst", name: "ROI Analyst", description: "Projects return on marketing investment",
-        icon: TrendingUp, color: "text-emerald-600",
+        id: "email-creator", name: "Email Creator", description: "Writes nurture email sequences and outreach messages",
+        icon: Mail, color: "text-emerald-600",
         inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Total Budget ($)", key: "budget", type: "text" },
-          { label: "Projected Leads", key: "projectedLeads", type: "text" },
-          { label: "Projected Appointments", key: "projectedAppointments", type: "text" },
-          { label: "Duration (days)", key: "durationDays", type: "text" },
-          { label: "Channels", key: "channels", type: "text" },
-        ],
-      },
-      {
-        id: "cost-tracker", name: "Cost Tracker", description: "Monitors CPL, CPA, and budget variance",
-        icon: Shield, color: "text-emerald-600",
-        inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Total Budget ($)", key: "budget", type: "text" },
-          { label: "Projected Leads", key: "projectedLeads", type: "text" },
-          { label: "Duration (days)", key: "durationDays", type: "text" },
-          { label: "Channels", key: "channels", type: "text" },
+          { label: "Topic", key: "topic", type: "text" },
+          { label: "Target Audience", key: "targetAudience", type: "text" },
+          { label: "Key Points", key: "keyPoints", type: "textarea" },
+          { label: "Tone", key: "tone", type: "select", options: ["Warm", "Professional", "Friendly", "Educational"] },
         ],
       },
     ],
   },
   {
-    type: "analyst",
-    name: "Data Analyst",
-    title: "Data & Research Department",
-    description: "Web scraping, lead generation, market intelligence, and prospect discovery at scale",
-    icon: BarChart3,
+    type: "research",
+    name: "Research",
+    title: "Prospect Researcher",
+    description: "Research prospects, analyze fit, and uncover partnership opportunities",
+    icon: Search,
+    gradient: "from-violet-500 to-purple-600",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+    borderColor: "border-violet-200",
+    stats: [
+      { label: "Research Types", value: "4", icon: Search, color: "text-violet-600" },
+      { label: "Active", value: "Yes", icon: Target, color: "text-violet-600" },
+    ],
+    subAgents: [
+      {
+        id: "prospect-analyzer", name: "Prospect Analyzer", description: "Analyzes prospects for fit and partnership potential",
+        icon: Search, color: "text-violet-600",
+        inputs: [
+          { label: "Name / Company", key: "companyName", type: "text" },
+          { label: "Industry", key: "industry", type: "text" },
+          { label: "Role", key: "role", type: "text" },
+          { label: "Location", key: "location", type: "text" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "outreach",
+    name: "Outreach",
+    title: "Consultation Booker",
+    description: "Generate personalized outreach messages, qualify leads, and schedule appointments",
+    icon: Mail,
     gradient: "from-blue-500 to-cyan-600",
     color: "text-blue-600",
     bg: "bg-blue-50",
     borderColor: "border-blue-200",
     stats: [
-      { label: "Leads Found", value: "24", icon: Search, color: "text-blue-600" },
-      { label: "Sources", value: "8", icon: Layers, color: "text-blue-600" },
-      { label: "Enriched", value: "16", icon: FileText, color: "text-blue-600" },
-    ],
-    subAgents: [        { id: "web-scraper", name: "Web Lead Scraper", description: "Finds prospect profiles from directories and sources",
-        icon: Search, color: "text-blue-600",
-        inputs: [
-          { label: "Target Market", key: "targetMarket", type: "text" },
-          { label: "Industry / Niche", key: "industry", type: "text" },
-          { label: "Location", key: "location", type: "text" },
-          { label: "Roles (comma separated)", key: "roles", type: "text" },
-          { label: "Max Leads", key: "maxLeads", type: "text" },
-          { label: "Sources", key: "sources", type: "select", options: ["directory, web, social", "directory, web", "web, social", "all"] },
-        ],
-      },
-      {
-        id: "lead-enricher", name: "Lead Enricher", description: "Enriches lead profiles with insights and context",
-        icon: FileText, color: "text-blue-600",
-        inputs: [
-          { label: "Target Market", key: "targetMarket", type: "text" },
-          { label: "Industry", key: "industry", type: "text" },
-          { label: "Location", key: "location", type: "text" },
-          { label: "Roles (comma separated)", key: "roles", type: "text" },
-          { label: "Max Leads", key: "maxLeads", type: "text" },
-          { label: "Sources", key: "sources", type: "select", options: ["directory, web, social", "directory, web", "web, social", "all"] },
-        ],
-      },
-      {
-        id: "market-analyst", name: "Market Analyst", description: "Tracks trends, competitors, and keyword opportunities",
-        icon: BarChart3, color: "text-blue-600",
-        inputs: [
-          { label: "Target Market", key: "targetMarket", type: "text" },
-          { label: "Industry", key: "industry", type: "text" },
-          { label: "Location", key: "location", type: "text" },
-          { label: "Roles (comma separated)", key: "roles", type: "text" },
-          { label: "Max Leads", key: "maxLeads", type: "text" },
-          { label: "Sources", key: "sources", type: "select", options: ["directory, web, social", "directory, web", "web, social", "all"] },
-        ],
-      },
-    ],
-  },
-  {
-    type: "design",
-    name: "Design Team",
-    title: "Creative Studio",
-    description: "Poster concepts, viral video strategies, and brand assets for high-impact visual marketing",
-    icon: Palette,
-    gradient: "from-pink-500 to-rose-600",
-    color: "text-pink-600",
-    bg: "bg-pink-50",
-    borderColor: "border-pink-200",
-    stats: [
-      { label: "Concepts", value: "6", icon: Image, color: "text-pink-600" },
-      { label: "In Production", value: "2", icon: Zap, color: "text-pink-600" },
-      { label: "Brand Assets", value: "4", icon: Layers, color: "text-pink-600" },
+      { label: "Channels", value: "4", icon: Mail, color: "text-blue-600" },
+      { label: "Smart", value: "Yes", icon: Target, color: "text-blue-600" },
     ],
     subAgents: [
       {
-        id: "poster-creator", name: "Poster Creator", description: "Designs poster and visual content concepts with full briefs",
-        icon: Image, color: "text-pink-600",
+        id: "message-generator", name: "Message Generator", description: "Generates personalized outreach for any channel",
+        icon: Mail, color: "text-blue-600",
         inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Topic / Theme", key: "topic", type: "text" },
-          { label: "Target Audience", key: "targetAudience", type: "text" },
-          { label: "Platforms (comma)", key: "platforms", type: "text" },
-          { label: "Brand Colors (comma)", key: "brandColors", type: "text" },
-          { label: "Vibe", key: "vibe", type: "select", options: ["professional", "educational", "emotional", "trendy", "minimalist"] },
-        ],
-      },
-      {
-        id: "video-strategist", name: "Video Strategist", description: "Creates viral video scripts and production briefs",
-        icon: Zap, color: "text-pink-600",
-        inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Topic", key: "topic", type: "text" },
-          { label: "Target Audience", key: "targetAudience", type: "text" },
-          { label: "Platforms (comma)", key: "platforms", type: "text" },
-          { label: "Brand Colors (comma)", key: "brandColors", type: "text" },
-          { label: "Vibe", key: "vibe", type: "select", options: ["trendy", "educational", "emotional", "professional"] },
-        ],
-      },
-      {
-        id: "brand-asset-manager", name: "Brand Manager", description: "Manages brand consistency and asset templates",
-        icon: Layers, color: "text-pink-600",
-        inputs: [
-          { label: "Campaign Name", key: "campaignName", type: "text" },
-          { label: "Topic", key: "topic", type: "text" },
-          { label: "Target Audience", key: "targetAudience", type: "text" },
-          { label: "Platforms (comma)", key: "platforms", type: "text" },
-          { label: "Brand Colors (comma)", key: "brandColors", type: "text" },
-          { label: "Vibe", key: "vibe", type: "select", options: ["professional", "minimalist", "emotional", "educational"] },
-        ],
-      },
-    ],
-  },
-  {
-    type: "developer",
-    name: "Developer",
-    title: "Engineering Department",
-    description: "Auto-fixes errors, reviews code, manages dependencies, and monitors application health automatically",
-    icon: Code2,
-    gradient: "from-cyan-500 to-blue-600",
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-    borderColor: "border-cyan-200",
-    stats: [
-      { label: "Error Fixes", value: "Auto", icon: Bug, color: "text-cyan-600" },
-      { label: "Code Reviews", value: "AI", icon: GitBranch, color: "text-cyan-600" },
-      { label: "Dependencies", value: "Audit", icon: Package, color: "text-cyan-600" },
-    ],
-    subAgents: [
-      {
-        id: "error-fixer", name: "Error Auto-Fixer", description: "Analyzes build errors and suggests precise file-by-file fixes",
-        icon: Bug, color: "text-cyan-600",
-        inputs: [
-          { label: "Specific Issue", key: "specificIssue", type: "text" },
-          { label: "Error Logs (paste output)", key: "errorLogs", type: "textarea" },
-          { label: "Affected Files (comma)", key: "filePaths", type: "text" },
-          { label: "Project Type", key: "projectType", type: "select", options: ["Next.js + TypeScript", "React + TypeScript", "Node.js + TypeScript", "Generic TypeScript"] },
-        ],
-      },
-      {
-        id: "code-reviewer", name: "Code Reviewer", description: "Reviews code changes for bugs, performance, and best practices",
-        icon: GitBranch, color: "text-cyan-600",
-        inputs: [
-          { label: "Recent Changes / Code to Review", key: "recentChanges", type: "textarea" },
-          { label: "Affected Files (comma)", key: "filePaths", type: "text" },
-          { label: "Specific Concern", key: "specificIssue", type: "text" },
-          { label: "Review Focus", key: "projectType", type: "select", options: ["Full Review", "Type Safety", "Performance", "Security", "Best Practices"] },
-        ],
-      },
-      {
-        id: "dependency-manager", name: "Dependency Manager", description: "Audits packages for vulnerabilities and recommends updates",
-        icon: Package, color: "text-cyan-600",
-        inputs: [
-          { label: "Dependency List (package.json content)", key: "dependencyList", type: "textarea" },
-          { label: "Specific Package to Check", key: "specificIssue", type: "text" },
-          { label: "Project Type", key: "projectType", type: "select", options: ["Next.js", "React", "Node.js", "Generic"] },
-        ],
-      },
-      {
-        id: "app-health-monitor", name: "App Health Monitor", description: "Monitors build health, configuration, and overall stability",
-        icon: HeartPulse, color: "text-cyan-600",
-        inputs: [
-          { label: "Build Output (paste)", key: "errorLogs", type: "textarea" },
-          { label: "Focus Area", key: "specificIssue", type: "select", options: ["Full Health Check", "Configuration", "Performance", "Architecture", "Security"] },
-          { label: "Project Type", key: "projectType", type: "select", options: ["Next.js + TypeScript", "React + TypeScript", "Full Stack"] },
+          { label: "Prospect Name", key: "prospectName", type: "text" },
+          { label: "Channel", key: "channel", type: "select", options: ["email", "whatsapp", "linkedin", "phone"] },
+          { label: "Tone", key: "tone", type: "select", options: ["warm", "professional", "casual", "empathetic"] },
         ],
       },
     ],
@@ -581,8 +394,7 @@ function DepartmentResult({ result }: { result: { output: string; metadata?: Rec
             <p className="text-xs font-semibold text-surface-400 uppercase mb-2">Video Concepts</p>
             {(parsed.videos as { title: string; format: string; hook: string }[]).slice(0, 2).map((v, i) => (
               <div key={i} className="rounded-lg border border-surface-200 bg-white p-3 mb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap className="h-3.5 w-3.5 text-pink-500" />
+                <div className="flex items-center gap-2 mb-1">                          <Sparkles className="h-3.5 w-3.5 text-pink-500" />
                   <p className="text-sm font-semibold text-surface-900">{v.title}</p>
                 </div>
                 <p className="text-xs text-surface-500">Format: {v.format} · Hook: {v.hook}</p>
@@ -628,7 +440,7 @@ function DepartmentResult({ result }: { result: { output: string; metadata?: Rec
             {(parsed.fixSteps as { file: string; change: string; reasoning: string }[]).slice(0, 6).map((step, i) => (
               <div key={i} className="rounded-lg border border-surface-200 bg-white p-3 mb-2">
                 <div className="flex items-center gap-2 mb-1">
-                  <Bug className="h-3.5 w-3.5 text-cyan-500" />
+                  <Target className="h-3.5 w-3.5 text-cyan-500" />
                   <span className="text-sm font-mono font-medium text-surface-800">{step.file}</span>
                 </div>
                 <p className="text-xs text-surface-600 mb-1"><span className="font-medium">Change:</span> {step.change}</p>
@@ -659,7 +471,7 @@ function DepartmentResult({ result }: { result: { output: string; metadata?: Rec
             <p className="text-xs font-semibold text-surface-400 uppercase mb-2">Dependencies & Vulnerabilities</p>
             {(parsed.vulnerabilities as { package: string; current: string; recommended: string; severity: string; impact: string }[]).slice(0, 4).map((v, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-surface-700 mb-1.5">
-                <Package className="h-3.5 w-3.5 text-cyan-500 mt-0.5 flex-shrink-0" />
+                <FileText className="h-3.5 w-3.5 text-cyan-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs"><span className="font-medium">{v.package}</span>: {v.current} → {v.recommended}</p>
                   <p className="text-xs text-surface-400">{v.impact}</p>
@@ -753,7 +565,7 @@ function DepartmentResult({ result }: { result: { output: string; metadata?: Rec
 // ============ MAIN PAGE ============
 
 export default function HierarchyPage() {
-  const [selectedDept, setSelectedDept] = useState<AgentType>("ceo");
+  const [selectedDept, setSelectedDept] = useState<AgentType>("content");
   const [selectedSubAgent, setSelectedSubAgent] = useState<string>("");
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<AgentStatus>("idle");
@@ -788,35 +600,7 @@ export default function HierarchyPage() {
       let agentInput: Record<string, unknown> = {};
       const context: Record<string, unknown> = { subAgent: selectedSubAgent, ...inputs };
 
-      if (selectedDept === "cfo") {
-        agentInput = {
-          campaignName: inputs.campaignName ?? "",
-          budget: parseFloat(inputs.budget ?? "1000"),
-          projectedLeads: parseInt(inputs.projectedLeads ?? "50"),
-          projectedAppointments: parseInt(inputs.projectedAppointments ?? "10"),
-          durationDays: parseInt(inputs.durationDays ?? "30"),
-          channels: (inputs.channels ?? "whatsapp,email,linkedin").split(",").map((s: string) => s.trim()),
-        };
-      } else if (selectedDept === "analyst") {
-        agentInput = {
-          targetMarket: inputs.targetMarket ?? "",
-          industry: inputs.industry ?? "",
-          location: inputs.location ?? "",
-          roles: (inputs.roles ?? "").split(",").map((s: string) => s.trim()),
-          maxLeads: parseInt(inputs.maxLeads ?? "10"),
-          sources: (inputs.sources ?? "directory,web").split(",").map((s: string) => s.trim()),
-        };
-      } else if (selectedDept === "design") {
-        agentInput = {
-          campaignName: inputs.campaignName ?? "",
-          topic: inputs.topic ?? "",
-          targetAudience: inputs.targetAudience ?? "",
-          platforms: (inputs.platforms ?? "instagram").split(",").map((s: string) => s.trim()),
-          brandColors: (inputs.brandColors ?? "#2B6CB0,#38A169,#F6E05E").split(",").map((s: string) => s.trim()),
-          vibe: inputs.vibe ?? "educational",
-          includeLogos: true,
-        };
-      } else if (selectedDept === "sales") {
+      if (selectedDept === "sales") {
         agentInput = {
           leadName: inputs.leadName ?? "",
           leadCompany: inputs.leadCompany ?? "",
@@ -825,22 +609,34 @@ export default function HierarchyPage() {
           channel: inputs.channel ?? "whatsapp",
           urgency: inputs.urgency ?? "warm",
         };
-      } else if (selectedDept === "developer") {
+      } else if (selectedDept === "content") {
         agentInput = {
-          projectType: inputs.projectType ?? "Next.js + TypeScript",
-          errorLogs: inputs.errorLogs ?? "",
-          filePaths: inputs.filePaths ? inputs.filePaths.split(",").map((s: string) => s.trim()) : [],
-          recentChanges: inputs.recentChanges ?? "",
-          specificIssue: inputs.specificIssue ?? "",
+          topic: inputs.topic ?? "",
+          contentType: "blog",
+          targetAudience: inputs.targetAudience ?? "",
+          keyPoints: (inputs.keyPoints ?? "").split("\n").filter(Boolean),
+          tone: inputs.tone ?? "Educational",
+        };
+      } else if (selectedDept === "research") {
+        agentInput = {
+          companyName: inputs.companyName ?? "",
+          industry: inputs.industry ?? "",
+          role: inputs.role ?? "",
+          location: inputs.location ?? "",
+        };
+      } else if (selectedDept === "outreach") {
+        agentInput = {
+          name: inputs.prospectName ?? "",
+          company: inputs.prospectCompany ?? "",
+          personaType: inputs.personaType ?? "customer",
         };
       } else {
-        // CEO
+        // scraper
         agentInput = {
-          goal: inputs.goal ?? "",
-          timeframe: inputs.timeframe ?? "This Month",
-          targetOutcome: inputs.targetOutcome ?? "",
-          priority: inputs.priority ?? "high",
-          budget: inputs.budget ?? undefined,
+          query: inputs.query ?? "",
+          industry: inputs.industry ?? "",
+          location: inputs.location ?? "",
+          maxResults: parseInt(inputs.maxLeads ?? "10"),
         };
       }
 
@@ -880,9 +676,9 @@ export default function HierarchyPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-surface-900">AI Org Hierarchy</h2>
+        <h2 className="text-2xl font-bold text-surface-900">AI Agents</h2>
         <p className="text-sm text-surface-500 mt-1">
-          Your full AI-powered corporate team — CEO, CFO, Data Analyst, Design Team, Engineering, and Sales Team working together
+          Your core AI agents — Content, Research, Outreach, Sales, and Scraper working in harmony
         </p>
       </div>
 
