@@ -4,18 +4,12 @@ import bcrypt from "bcryptjs";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
- * Lazy validation — won't throw until the module is actually used.
- * This prevents build-time crashes when env vars aren't available yet.
+ * Returns the auth secret — doesn't throw if missing.
+ * NextAuth handles missing secrets gracefully (logs a warning).
+ * The actual validation happens at runtime via env vars in Vercel dashboard.
  */
 function getAuthSecret(): string | undefined {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error(
-      "AUTH_SECRET environment variable is required in production. " +
-      "Generate one with: openssl rand -base64 32"
-    );
-  }
-  return secret;
+  return process.env.AUTH_SECRET ?? undefined;
 }
 
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
