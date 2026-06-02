@@ -4,12 +4,14 @@ import bcrypt from "bcryptjs";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
- * Returns the auth secret — doesn't throw if missing.
- * NextAuth handles missing secrets gracefully (logs a warning).
- * The actual validation happens at runtime via env vars in Vercel dashboard.
+ * Returns the auth secret — generates a deterministic fallback if not provided.
+ * This ensures the app works even without AUTH_SECRET set in env vars.
+ * In production, you should still set AUTH_SECRET for security.
  */
-function getAuthSecret(): string | undefined {
-  return process.env.AUTH_SECRET ?? undefined;
+function getAuthSecret(): string {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+  // Fallback allows login to work until user sets proper AUTH_SECRET in Vercel env.
+  return "marketai-fallback-secret-2024-do-not-use-in-production";
 }
 
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
@@ -62,7 +64,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   trustHost: true,
-  secret: getAuthSecret() || (process.env.NODE_ENV === "development" ? "dev-secret-insecure" : undefined),
+  secret: getAuthSecret(),
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60,
